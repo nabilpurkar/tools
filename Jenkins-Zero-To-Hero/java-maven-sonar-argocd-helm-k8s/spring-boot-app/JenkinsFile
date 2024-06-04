@@ -51,13 +51,14 @@ pipeline {
             environment {
                 GIT_REPO_NAME = "tools"
                 GIT_USER_NAME = "nabilpurkar"
+                DOCKER_IMAGE_NAME = 'tools'
             }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'git-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
                     sh '''
                         git config user.email "nabilpurkar9768@gmail.com"
                         git config user.name "Nabil Purkar"
-                        sed -i "s/replaceImageTag/${BUILD_NUMBER}/g; s/replaceImageName/${GIT_USER_NAME}/g" Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+                        sed -i "s/replaceImageTag/${BUILD_NUMBER}/g; s/replaceImageName/${DOCKER_IMAGE_NAME}/g" Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
                         git add Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
                         git commit -m "Update deployment image to version ${BUILD_NUMBER}"
                         git push https://${GIT_PAT}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:master
