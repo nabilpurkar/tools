@@ -27,7 +27,8 @@ pipeline {
         stage('Build and Push Docker Image') {
             environment {
                 DOCKER_REGISTRY = '613873121578.dkr.ecr.us-east-1.amazonaws.com'
-                DOCKER_IMAGE_NAME = 'tools/ultimate-cicd'
+                DOCKER_IMAGE_NAME = 'tools'
+                DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
             }
             steps {
                 withCredentials([[
@@ -39,9 +40,9 @@ pipeline {
                     script {
                         sh 'aws sts get-caller-identity'
                         sh 'aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${DOCKER_REGISTRY}'
-                        sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && docker build -t ${DOCKER_IMAGE_NAME}:${BUILD_NUMBER} .'
-                        sh "docker tag ${DOCKER_IMAGE_NAME}:${BUILD_NUMBER} ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}"
-                        sh "docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}"
+                        sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && docker build -t ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} .'
+                        sh "docker tag ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+                        sh "docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
                     }
                 }
             }
