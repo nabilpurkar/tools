@@ -71,7 +71,7 @@ pipeline {
                         # Add, commit, and push changes to Git repository
                         git add Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
                         git commit -m "Update deployment image to version ${BUILD_NUMBER}"
-                        git push https://${GIT_PAT}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
+                        git push https://${GIT_PAT}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:master
                     '''
                 }
             }
