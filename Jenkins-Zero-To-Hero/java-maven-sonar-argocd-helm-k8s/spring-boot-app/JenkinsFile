@@ -58,7 +58,7 @@ pipeline {
                         git config user.email "nabilpurkar9768@gmail.com"
                         git config user.name "Nabil Purkar"
                         sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
-                        git add Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+                        git add Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/.
                         git commit -m "Update deployment image to version ${BUILD_NUMBER}"
                         git push https://${GIT_PAT}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:master
                     '''
