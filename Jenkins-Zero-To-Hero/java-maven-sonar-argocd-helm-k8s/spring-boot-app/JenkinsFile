@@ -6,12 +6,13 @@ pipeline {
                 cleanWs()
             }
         }
-    stages {
+        
         stage('Checkout') {
             steps {
                 sh 'echo passed'
             }
         }
+        
         stage('Build and Test') {
             steps {
                 sh 'ls -ltr'
@@ -19,6 +20,7 @@ pipeline {
                 sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn clean package'
             }
         }
+        
         stage('Static Code Analysis') {
             environment {
                 SONAR_URL = "http://172.31.56.215:9000"
@@ -29,6 +31,7 @@ pipeline {
                 }
             }
         }
+        
         stage('Build and Push Docker Image') {
             environment {
                 DOCKER_REGISTRY = '613873121578.dkr.ecr.us-east-1.amazonaws.com'
@@ -52,6 +55,7 @@ pipeline {
                 }
             }
         }
+        
         stage('Update Deployment File') {
             environment {
                 GIT_REPO_NAME = "tools"
@@ -67,11 +71,9 @@ pipeline {
                         git add Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
                         git commit -m "Update deployment image to version ${BUILD_NUMBER}"
                         git push https://${GIT_PAT}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:master
-
                     '''
                 }
             }
         }
     }
-}
 }
