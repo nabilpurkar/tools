@@ -52,6 +52,7 @@ pipeline {
                 GIT_REPO_NAME = "tools"
                 GIT_USER_NAME = "nabilpurkar"
                 DOCKER_IMAGE_NAME = 'tools'
+                DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
             }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'git-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
