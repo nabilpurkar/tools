@@ -59,7 +59,7 @@ pipeline {
                     sh '''
                         git config user.email "nabilpurkar9768@gmail.com"
                         git config user.name "Nabil Purkar"
-                        sed -i -E "s|(image: )[a-zA-Z0-9/.-]+(:)[a-zA-Z0-9.-]+|\\1${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}|" springboot-test/spring-boot-app-manifests/deployment.yml
+                        sed -i -E "s|(image: )[a-zA-Z0-9/.-]+(:)[a-zA-Z0-9.-]+|\\1${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}|" services/springboot-test/spring-boot-app-manifests/deployment.yml
                         git add services/springboot-test/.
                         git commit -m "Update deployment image to version ${BUILD_NUMBER}"
                         git push https://${GIT_PAT}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:master
