@@ -1,68 +1,66 @@
 pipeline {
-  agent any
-  stages {
-    stage('Checkout') {
-      steps {
-        sh 'echo passed'
-        //git branch: 'main', url: 'https://github.com/iam-veeramalla/Jenkins-Zero-To-Hero.git'
-      }
-    }
-    stage('Build and Test') {
-      steps {
-        sh 'ls -ltr'
-        // build the project and create a JAR file
-        sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn clean package'
-      }
-    }
-    stage('Static Code Analysis') {
-      environment {
-        SONAR_URL = "http://172.31.56.215:9000"
-      }
-      steps {
-        //withCredentials([usernameColonPassword(credentialsId: 'sonar', variable: 'SONAR_AUTH_TOKEN')]) {
-        //withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_AUTH_TOKEN')]) {
-        withCredentials([usernamePassword(credentialsId: 'sonar', usernameVariable: 'SONAR_USER', passwordVariable: 'SONAR_PASS')]) {
-            sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn sonar:sonar -Dsonar.login=$SONAR_USER -Dsonar.password=$SONAR_PASS -Dsonar.host.url=${SONAR_URL}'
+    agent any
+    stages {
+        stage('Checkout') {
+            steps {
+                sh 'echo passed'
+                // git branch: 'main', url: 'https://github.com/iam-veeramalla/Jenkins-Zero-To-Hero.git'
+            }
         }
-      }
-    }
-    stage('Build and Push Docker Image') {
-        environment {
-            DOCKER_REGISTRY = '613873121578.dkr.ecr.us-east-1.amazonaws.com'
-            DOCKER_IMAGE_NAME = 'tools/ultimate-cicd:${BUILD_NUMBER}'
+        stage('Build and Test') {
+            steps {
+                sh 'ls -ltr'
+                // build the project and create a JAR file
+                sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn clean package'
+            }
         }
-
-      steps {
-          withAWS(credentials: 'AWS', region: 'us-east-1') {
-              script {
-                sh 'aws sts get-caller-identity'
-                        
-                sh 'aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${DOCKER_REGISTRY}'
-                sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && docker build -t ${DOCKER_IMAGE_NAME} .'
-                sh "docker tag ${DOCKER_IMAGE_NAME} ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}"
-                sh "docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}"
-       }
-    }
-}
-
-    stage('Update Deployment File') {
-        environment {
-            GIT_REPO_NAME = "Jenkins-Zero-To-Hero"
-            GIT_USER_NAME = "nabilpurkar"
+        stage('Static Code Analysis') {
+            environment {
+                SONAR_URL = "http://172.31.56.215:9000"
+            }
+            steps {
+                // withCredentials([usernameColonPassword(credentialsId: 'sonar', variable: 'SONAR_AUTH_TOKEN')]) {
+                // withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_AUTH_TOKEN')]) {
+                withCredentials([usernamePassword(credentialsId: 'sonar', usernameVariable: 'SONAR_USER', passwordVariable: 'SONAR_PASS')]) {
+                    sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn sonar:sonar -Dsonar.login=$SONAR_USER -Dsonar.password=$SONAR_PASS -Dsonar.host.url=${SONAR_URL}'
+                }
+            }
         }
-        steps {
-            withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
-                sh '''
-                    git config user.email "abhishek.xyz@gmail.com"
-                    git config user.name "Abhishek Veeramalla"
-                    BUILD_NUMBER=${BUILD_NUMBER}
-                    sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
-                    git add Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
-                    git commit -m "Update deployment image to version ${BUILD_NUMBER}"
-                    git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
-                '''
+        stage('Build and Push Docker Image') {
+            environment {
+                DOCKER_REGISTRY = '613873121578.dkr.ecr.us-east-1.amazonaws.com'
+                DOCKER_IMAGE_NAME = 'tools/ultimate-cicd:${BUILD_NUMBER}'
+            }
+            steps {
+                withAWS(credentials: 'AWS', region: 'us-east-1') {
+                    script {
+                        sh 'aws sts get-caller-identity'
+                        sh 'aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${DOCKER_REGISTRY}'
+                        sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && docker build -t ${DOCKER_IMAGE_NAME} .'
+                        sh "docker tag ${DOCKER_IMAGE_NAME} ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}"
+                        sh "docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}"
+                    }
+                }
+            }
+        }
+        stage('Update Deployment File') {
+            environment {
+                GIT_REPO_NAME = "Jenkins-Zero-To-Hero"
+                GIT_USER_NAME = "nabilpurkar"
+            }
+            steps {
+                withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
+                    sh '''
+                        git config user.email "abhishek.xyz@gmail.com"
+                        git config user.name "Abhishek Veeramalla"
+                        BUILD_NUMBER=${BUILD_NUMBER}
+                        sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+                        git add Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+                        git commit -m "Update deployment image to version ${BUILD_NUMBER}"
+                        git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
+                    '''
+                }
             }
         }
     }
-  }
 }
