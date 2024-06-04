@@ -4,9 +4,9 @@ pipeline {
         stage('Checkout') {
             steps {
                 sh 'echo passed'
+                // git branch: 'main', url: 'https://github.com/iam-veeramalla/Jenkins-Zero-To-Hero.git'
             }
         }
-        
         stage('Build and Test') {
             steps {
                 sh 'ls -ltr'
@@ -14,18 +14,16 @@ pipeline {
                 sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn clean package'
             }
         }
-        
         stage('Static Code Analysis') {
             environment {
                 SONAR_URL = "http://172.31.56.215:9000"
             }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'sonar', usernameVariable: 'SONAR_USER', passwordVariable: 'SONAR_PASS')]) {
-                    sh "cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn sonar:sonar -Dsonar.login=${SONAR_USER} -Dsonar.password=${SONAR_PASS} -Dsonar.host.url=${SONAR_URL}"
+                    sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn sonar:sonar -Dsonar.login=$SONAR_USER -Dsonar.password=$SONAR_PASS -Dsonar.host.url=${SONAR_URL}'
                 }
             }
         }
-        
         stage('Build and Push Docker Image') {
             environment {
                 DOCKER_REGISTRY = '613873121578.dkr.ecr.us-east-1.amazonaws.com'
@@ -42,40 +40,28 @@ pipeline {
                     script {
                         sh 'aws sts get-caller-identity'
                         sh 'aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${DOCKER_REGISTRY}'
-                        sh "cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && docker build -t ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} ."
+                        sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && docker build -t ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} .'
                         sh "docker tag ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
                         sh "docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
                     }
                 }
             }
         }
-        
         stage('Update Deployment File') {
             environment {
-                GIT_REPO_NAME = "tools"
+                GIT_REPO_NAME = "Jenkins-Zero-To-Hero"
                 GIT_USER_NAME = "nabilpurkar"
-                DOCKER_IMAGE_NAME = 'tools'
             }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'git-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
                     sh '''
                         git config user.email "nabilpurkar9768@gmail.com"
                         git config user.name "Nabil Purkar"
-                        sed -i "s/replaceImageTag/${BUILD_NUMBER}/g; s/replaceImageName/${DOCKER_IMAGE_NAME}/g" Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+                        sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
                         git add Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
                         git commit -m "Update deployment image to version ${BUILD_NUMBER}"
-                        git push https://${GIT_USER}:${GIT_PAT}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:master
+                        git push https://${GIT_PAT}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:master
                     '''
-                }
-            }
-        }
-    }
-    
-    post {
-        always {
-            steps {
-                script {
-                    cleanWs()
                 }
             }
         }
