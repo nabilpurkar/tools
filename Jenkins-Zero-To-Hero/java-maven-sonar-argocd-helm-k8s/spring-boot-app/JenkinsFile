@@ -32,18 +32,18 @@ pipeline {
             DOCKER_IMAGE_NAME = 'tools/ultimate-cicd:${BUILD_NUMBER}'
         }
 
-        steps {
-            script {
-                // Ensure that AWS CLI uses the pre-configured credentials
+      steps {
+          withAWS(credentials: 'AWS', region: 'us-east-1') {
+              script {
                 sh 'aws sts get-caller-identity'
-                
+                        
                 sh 'aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${DOCKER_REGISTRY}'
                 sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && docker build -t ${DOCKER_IMAGE_NAME} .'
                 sh "docker tag ${DOCKER_IMAGE_NAME} ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}"
                 sh "docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}"
-            }
-        }
+       }
     }
+}
 
     stage('Update Deployment File') {
         environment {
