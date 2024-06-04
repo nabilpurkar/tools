@@ -19,9 +19,10 @@ pipeline {
         SONAR_URL = "http://172.31.56.215:9000"
       }
       steps {
-        withCredentials([usernameColonPassword(credentialsId: 'sonar', variable: 'SONAR_AUTH_TOKEN')]) {
+        //withCredentials([usernameColonPassword(credentialsId: 'sonar', variable: 'SONAR_AUTH_TOKEN')]) {
         //withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_AUTH_TOKEN')]) {
-          sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn sonar:sonar -Dsonar.login=$SONAR_AUTH_TOKEN -Dsonar.host.url=${SONAR_URL}'
+        withCredentials([usernameColonPassword(credentialsId: 'sonar', variable: 'SONAR_PASS')]) {
+          sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn sonar:sonar -Dsonar.login=$SONAR_PASS -Dsonar.host.url=${SONAR_URL}'
         }
       }
     }
