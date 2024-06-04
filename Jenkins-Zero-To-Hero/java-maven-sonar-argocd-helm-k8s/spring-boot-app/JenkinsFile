@@ -1,5 +1,18 @@
 pipeline {
     agent any
+    stages {
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+        
+        stage('Wait') {
+            steps {
+                sh 'sleep 20'
+            }
+        }
+        
         stage('Checkout') {
             steps {
                 sh 'echo passed'
@@ -69,4 +82,4 @@ pipeline {
             }
         }
     }
-
+}
