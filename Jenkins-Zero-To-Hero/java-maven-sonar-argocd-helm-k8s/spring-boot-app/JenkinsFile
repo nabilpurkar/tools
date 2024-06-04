@@ -1,18 +1,6 @@
 pipeline {
     agent any
     stages {
-        stage('Clean Workspace') {
-            steps {
-                cleanWs()
-            }
-        }
-        
-        stage('Wait') {
-            steps {
-                sh 'sleep 20'
-            }
-        }
-        
         stage('Checkout') {
             steps {
                 sh 'echo passed'
@@ -78,6 +66,16 @@ pipeline {
                         git commit -m "Update deployment image to version ${BUILD_NUMBER}"
                         git push https://${GIT_PAT}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:master
                     '''
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            stage('Clean Workspace') {
+                steps {
+                    cleanWs()
                 }
             }
         }
