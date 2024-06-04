@@ -73,11 +73,10 @@ pipeline {
     
     post {
         always {
-            stage('Clean Workspace') {
-                steps {
+            steps {
+                script {
                     cleanWs()
                 }
             }
         }
     }
-}
