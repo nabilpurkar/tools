@@ -21,8 +21,8 @@ pipeline {
       steps {
         //withCredentials([usernameColonPassword(credentialsId: 'sonar', variable: 'SONAR_AUTH_TOKEN')]) {
         //withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_AUTH_TOKEN')]) {
-        withCredentials([usernameColonPassword(credentialsId: 'sonar', variable: 'SONAR_PASS')]) {
-          sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn sonar:sonar -Dsonar.login=$SONAR_PASS -Dsonar.host.url=${SONAR_URL}'
+        withCredentials([usernamePassword(credentialsId: 'sonar', usernameVariable: 'SONAR_USER', passwordVariable: 'SONAR_PASS')]) {
+            sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn sonar:sonar -Dsonar.login=$SONAR_USER -Dsonar.password=$SONAR_PASS -Dsonar.host.url=${SONAR_URL}'
         }
       }
     }
