@@ -16,6 +16,8 @@ spec:
     spec:
       containers:
       - name: spring-boot-app
+<<<<<<< HEAD:services/springboot-test/spring-boot-app-manifests/deployment.yml
         image: abhishekf5/ultimate-cicd:68
+=======
         ports:
         - containerPort: 8080
