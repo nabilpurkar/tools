@@ -1,7 +1,5 @@
 pipeline {
     agent any
-
-        
         stage('Checkout') {
             steps {
                 sh 'echo passed'
@@ -71,4 +69,4 @@ pipeline {
             }
         }
     }
-}
+
