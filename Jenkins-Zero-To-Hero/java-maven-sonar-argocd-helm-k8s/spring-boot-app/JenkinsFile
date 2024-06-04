@@ -27,7 +27,7 @@ pipeline {
     stage('Build and Push Docker Image') {
       environment {
         DOCKER_IMAGE = "abhishekf5/ultimate-cicd:${BUILD_NUMBER}"
-        aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 613873121578.dkr.ecr.us-east-1.amazonaws.com
+        sh 'aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 613873121578.dkr.ecr.us-east-1.amazonaws.com'
       }
       steps {
         script {
