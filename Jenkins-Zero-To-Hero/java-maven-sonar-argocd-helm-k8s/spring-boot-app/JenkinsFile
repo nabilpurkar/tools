@@ -51,6 +51,7 @@ pipeline {
             environment {
                 GIT_REPO_NAME = "tools"
                 GIT_USER_NAME = "nabilpurkar"
+                DOCKER_REGISTRY = '613873121578.dkr.ecr.us-east-1.amazonaws.com'
                 DOCKER_IMAGE_NAME = 'tools'
                 DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
             }
