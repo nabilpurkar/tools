@@ -3,15 +3,14 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                sh 'echo passed'
-                // git branch: 'main', url: 'https://github.com/iam-veeramalla/Jenkins-Zero-To-Hero.git'
+                sh 'echo passed' 
             }
         }
         stage('Build and Test') {
             steps {
                 sh 'ls -ltr'
                 // build the project and create a JAR file
-                sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn clean package'
+                sh 'cd services/springboot-test/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn clean package'
             }
         }
         stage('Static Code Analysis') {
@@ -20,7 +19,7 @@ pipeline {
             }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'sonar', usernameVariable: 'SONAR_USER', passwordVariable: 'SONAR_PASS')]) {
-                    sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn sonar:sonar -Dsonar.login=$SONAR_USER -Dsonar.password=$SONAR_PASS -Dsonar.host.url=${SONAR_URL}'
+                    sh 'cd services/springboot-test/spring-boot-app && /opt/apache-maven-3.9.7/bin/mvn sonar:sonar -Dsonar.login=$SONAR_USER -Dsonar.password=$SONAR_PASS -Dsonar.host.url=${SONAR_URL}'
                 }
             }
         }
@@ -40,7 +39,7 @@ pipeline {
                     script {
                         sh 'aws sts get-caller-identity'
                         sh 'aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${DOCKER_REGISTRY}'
-                        sh 'cd Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app && docker build -t ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} .'
+                        sh 'cd services/springboot-test/spring-boot-app && docker build -t ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} .'
                         sh "docker tag ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
                         sh "docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
                     }
@@ -60,8 +59,8 @@ pipeline {
                     sh '''
                         git config user.email "nabilpurkar9768@gmail.com"
                         git config user.name "Nabil Purkar"
-                        sed -i -E "s|(image: )[a-zA-Z0-9/.-]+(:)[a-zA-Z0-9.-]+|\\1${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}|" Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
-                        git add Jenkins-Zero-To-Hero/java-maven-sonar-argocd-helm-k8s/.
+                        sed -i -E "s|(image: )[a-zA-Z0-9/.-]+(:)[a-zA-Z0-9.-]+|\\1${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}|" springboot-test/spring-boot-app-manifests/deployment.yml
+                        git add services/springboot-test/.
                         git commit -m "Update deployment image to version ${BUILD_NUMBER}"
                         git push https://${GIT_PAT}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:master
                     '''
