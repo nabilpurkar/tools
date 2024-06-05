@@ -1,4 +1,4 @@
-@Library('sharedlib@feature/test')
+@Library('sharedlibrary@main')
 globalvars.loadGlobalVariables()
 
 def projectDir = "services/springboot-test/spring-boot-app"
