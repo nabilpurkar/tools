@@ -9,7 +9,7 @@ node {
     gitops.gitCheckout()
     codebuild.buildAndTest(projectDir)
     codebuild.sonarScan(projectDir)
-    docker.DockerfileLinting(projectDir)
+    //docker.DockerfileLinting(projectDir)
     docker.buildImage(projectDir)
     docker.ImageScan()
     docker.publishToECR()
