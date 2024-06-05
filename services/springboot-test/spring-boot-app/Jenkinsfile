@@ -1,0 +1,16 @@
+@Library('sharedlib@feature/test') _
+node ('Java17') {
+    globalvars.loadGlobalVariables()
+    
+    def projectDir = "services/springboot-test/spring-boot-app"
+    def deploymentFilePath = "services/springboot-test/spring-boot-app-manifests/deployment.yml"
+    
+    gitops.gitCheckout()
+    codebuild.buildAndTest(projectDir)
+    codebuild.sonarScan(projectDir)
+    docker.DockerfileLinting(projectDir)
+    docker.buildImage(projectDir)
+    docker.ImageScan()
+    docker.publishToECR()
+    helmupdate.updateDeploymentFile(deploymentFilePath)
+}
