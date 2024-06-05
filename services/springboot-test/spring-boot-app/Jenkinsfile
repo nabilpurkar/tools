@@ -10,7 +10,7 @@ node {
     codebuild.buildAndTest(projectDir)
     codebuild.sonarScan(projectDir)
     //docker.DockerfileLinting(projectDir)
-    docker.buildImage(projectDir)
+    docker.buildImage()
     docker.ImageScan()
     docker.publishToECR()
     helmupdate.updateDeploymentFile(deploymentFilePath)
