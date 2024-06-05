@@ -14,5 +14,5 @@ node {
     dockerBuild.buildImage(projectDir)
     dockerBuild.ImageScan()
     dockerBuild.publishToECR()
-    helmupdate.updateDeploymentFile(deploymentFilePath)
+    helmupdate.updateDeploymentFile(deploymentFilePath,GIT_REPO_NAME)
 }
