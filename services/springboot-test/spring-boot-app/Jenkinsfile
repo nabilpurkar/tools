@@ -1,6 +1,6 @@
 @Library('sharedlibrary@main') _
 
-globalvars.loadGlobalVariables()
+global.loadGlobalVariables()
 
 def projectDir = "services/springboot-test/spring-boot-app"
 def deploymentFilePath = "services/springboot-test/spring-boot-app-manifests/deployment.yml"
