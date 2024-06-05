@@ -1,6 +1,0 @@
-projectKey=com.nabil:spring-boot-demo
-serverUrl=http://172.31.56.215:9000
-serverVersion=9.9.5.90363
-dashboardUrl=http://172.31.56.215:9000/dashboard?id=com.nabil%3Aspring-boot-demo
-ceTaskId=AY_nJplvPcLAXQkvVbHZ
-ceTaskUrl=http://172.31.56.215:9000/api/ce/task?id=AY_nJplvPcLAXQkvVbHZ
