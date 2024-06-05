@@ -4,6 +4,7 @@ global.loadGlobalVariables()
 
 def projectDir = "services/springboot-test/spring-boot-app"
 def deploymentFilePath = "services/springboot-test/spring-boot-app-manifests/deployment.yml"
+def GIT_REPO_NAME = "services/springboot-test/spring-boot-app-manifests"
 
 node {
     gitops.gitCheckout()
