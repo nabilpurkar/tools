@@ -9,8 +9,9 @@ node {
     gitops.gitCheckout()
     codebuild.buildAndTest(projectDir)
     codebuild.sonarScan(projectDir)
-    docker.buildImage()
-    docker.ImageScan()
-    docker.publishToECR()
+    dockerBuild.dockerfileLinting(projectDir)
+    dockerBuild.buildImage(projectDir)
+    dockerBuild.ImageScan()
+    dockerBuild.publishToECR()
     helmupdate.updateDeploymentFile(deploymentFilePath)
 }
