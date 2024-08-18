@@ -33,9 +33,9 @@ if check_credentials; then
         eksctl create nodegroup \
             --cluster "$CLUSTER_NAME" \
             --name "$NODE_NAME" \
-            --nodes 4 \
+            --nodes 2 \
             --nodes-min 1 \
-            --nodes-max 4 \
+            --nodes-max 2 \
             --node-type t3.medium \
             --node-volume-size 8 \
             --ssh-access \

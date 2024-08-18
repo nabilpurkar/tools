@@ -1,0 +1,18 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: certificate
+spec:
+  dnsNames:
+  - "*.XXXXX.XXXXX"
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-cluster-issuer
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS1
+    size: 2048
+  secretName: certificate-secret
+  usages:
+  - server auth
+  - client auth

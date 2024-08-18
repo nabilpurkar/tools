@@ -1,0 +1,11 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: devopswizard-tls-cert 
+spec:
+  dnsNames:
+    - "*.XXXXXX.XXXXXX"
+  secretName: devopswizard-tls-cert 
+  issuerRef:
+    name: letsencrypt-cluster-issuer
+    kind: ClusterIssuer

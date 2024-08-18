@@ -3,7 +3,7 @@
 # Variables
 VPC_ID="vpc-bb06ffdd"
 SUBNETS=("subnet-3b5dd937" "subnet-a6c9738b" "subnet-2f4ed54a" "subnet-673e4b2e" "subnet-ebab72d7" "subnet-aba817f0")
-CERTIFICATE_ARN="arn:aws:acm:us-east-1:613873121578:certificate/4c471744-927c-4086-aba4-013247c1ff0e"
+CERTIFICATE_ARN="XXXXXXXXX"
 LOAD_BALANCER_NAME="my-internal-lb"
 LOAD_BALANCER_SCHEME="internal"  # Change to "internet-facing" if needed
 TARGET_GROUPS=("nginx:80" "jenkins:8080" "nexus:8081" "sonar:9000")

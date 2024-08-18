@@ -1,0 +1,20 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-cluster-issuer
+spec:
+  acme: 
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: @gmail.com
+    privateKeySecretRef:
+      name: letsencrypt-cluster-issuer-key
+    solvers:
+    - dns01:
+        cnameStrategy: Follow
+        route53:
+          region: us-east-1
+          hostedZoneID: XXXXXXXXXXXXX #PUBLICHOSTEDZONEID 
+          # sts: arn:aws:iam::XXXXXXXX:role/RoleForCertManager
+      selector:
+        dnsZones:
+          - "*.XXXXXX.XXXXX"
