@@ -47,5 +47,13 @@ if [ "$1" == "--non-root" ]; then
     sudo usermod -aG docker ${USER}
     echo_msg "You need to log out and back in to apply the new group membership."
 fi
-sudo chmod 666 /var/run/docker.sock
+
+sudo su -
+chmod 666 /var/run/docker.sock 
+usermod -aG docker jenkins
+usermod -aG docker ubuntu
+systemctl restart docker
+
 echo_msg "Docker installation completed successfully."
+
+

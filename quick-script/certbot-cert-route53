@@ -1,0 +1,17 @@
+Install Certbot
+sudo apt-get install certbot python3-certbot-dns-route53
+
+Create Certificate
+sudo certbot certonly --dns-route53 -d devopswizard.online -d *.devopswizard.online
+
+Cert Path
+cd /etc/letsencrypt/live/
+
+For Renewal
+sudo certbot renew --dns-route53 --dry-run
+
+To Set Cert For VPN
+/usr/local/openvpn_as/scripts/sacli --key "cs.priv_key" --value_file "/etc/letsencrypt/live/techmobi.cloud/privkey.pem" ConfigPut
+/usr/local/openvpn_as/scripts/sacli --key "cs.cert" --value_file "/etc/letsencrypt/live/techmobi.cloud/cert.pem" ConfigPut
+/usr/local/openvpn_as/scripts/sacli --key "cs.ca_bundle" --value_file "/etc/letsencrypt/live/techmobi.cloud/chain.pem" ConfigPut
+/usr/local/openvpn_as/scripts/sacli start

@@ -31,3 +31,6 @@ elif [ "$action" == "remove" ]; then
 else
     echo "Invalid action. Please enter 'install' or 'remove'."
 fi
+
+export M2_HOME=/opt/apache-maven-3.9.7  
+export PATH=$M2_HOME/bin:$PATH        
