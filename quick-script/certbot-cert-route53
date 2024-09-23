@@ -16,7 +16,10 @@ To Set Cert For VPN
 /usr/local/openvpn_as/scripts/sacli --key "cs.ca_bundle" --value_file "/etc/letsencrypt/live/techmobi.cloud/chain.pem" ConfigPut
 /usr/local/openvpn_as/scripts/sacli start
 
-To Change Admin Password
+Reintiate VPN
+/usr/local/openvpn_as/bin/ovpn-init
+
+To Change Password
 /usr/local/openvpn_as/scripts/sacli --user admin --new_pass SET_PASS_HERE SetLocalPassword
 
 Add Locked Profile
