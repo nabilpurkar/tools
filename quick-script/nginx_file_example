@@ -1,0 +1,92 @@
+# Redirect all HTTP traffic to HTTPS
+server {
+    listen 80;
+    server_name jenkins.sre-solutions.tech sonar.sre-solutions.tech jfrog.sre-solutions.tech bitbucket.sre-solutions.tech;
+
+    location / {
+        return 301 https://$host$request_uri;  # Redirect to HTTPS
+    }
+}
+
+# HTTPS for Jenkins
+server {
+    listen 443 ssl;
+    server_name jenkins.sre-solutions.tech;
+
+    ssl_certificate /etc/letsencrypt/live/sre-solutions.tech/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/sre-solutions.tech/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;  # Redirect to Jenkins service
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# HTTPS for SonarQube
+server {
+    listen 443 ssl;
+    server_name sonar.sre-solutions.tech;
+
+    ssl_certificate /etc/letsencrypt/live/sre-solutions.tech/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/sre-solutions.tech/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:9000;  # Redirect to SonarQube service (change to correct port)
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# HTTPS for JFrog
+server {
+    listen 443 ssl;
+    server_name jfrog.sre-solutions.tech;
+
+    ssl_certificate /etc/letsencrypt/live/sre-solutions.tech/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/sre-solutions.tech/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8082;  # Redirect to JFrog service (change to correct port)
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+# HTTPS for JFrog
+server {
+    listen 443 ssl;
+    server_name jfrog.sre-solutions.tech;
+
+    ssl_certificate /etc/letsencrypt/live/sre-solutions.tech/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/sre-solutions.tech/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8082;  # Redirect to JFrog service (change to correct port)
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+# HTTPS for Bitbucket
+server {
+    listen 443 ssl;
+    server_name bitbucket.sre-solutions.tech;
+
+    ssl_certificate /etc/letsencrypt/live/sre-solutions.tech/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/sre-solutions.tech/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:7990;  # Redirect to Bitbucket service (change to correct port)
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
