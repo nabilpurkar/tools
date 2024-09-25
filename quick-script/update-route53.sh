@@ -1,13 +1,12 @@
 #This script automatically updates a Route 53 DNS A record with the current public IP of an EC2 instance. It checks if the script is correctly named, retrieves the instance's IP, and updates the specified DNS record using the AWS CLI. Additionally, it creates and enables a systemd service to ensure the DNS record is updated automatically on instance startup.
 
 #!/bin/bash
-
 # Variables
 SCRIPT_RUN_PATH="$PWD"
 EXPECTED_SCRIPT_NAME="update-route53.sh"  # Expected script name
 SCRIPT_NAME=$(basename "$0")  # Get the actual running script name
-HOSTED_ZONE_ID="HOSTED_ZONE_ID"  # Replace with your Route 53 hosted zone ID
-DOMAIN_NAME="DOMAIN_NAME"        # Replace with your DNS name
+HOSTED_ZONE_ID="Z08101061QK9PTXKEWDTT"  # Replace with your Route 53 hosted zone ID
+DOMAIN_NAME="vpn.sre-solutions.tech"        # Replace with your DNS name
 TTL=300                          # Time to live for the DNS record
 
 # Check if the running script name matches the expected name
@@ -52,7 +51,7 @@ Description=Update Route 53 DNS record with new EC2 public IP on instance start
 After=network.target
 
 [Service]
-ExecStart=$SCRIPT_RUN_PATH/$SCRIPT_NAME
+ExecStart=/bin/bash $SCRIPT_RUN_PATH/$SCRIPT_NAME
 
 [Install]
 WantedBy=multi-user.target
