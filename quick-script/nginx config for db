@@ -1,0 +1,21 @@
+PATH = sudo vi /etc/nginx/nginx.conf
+
+stream {
+  upstream mysql {
+    server 172.31.87.130:32666;  # The internal IP and port of your MySQL service
+  }
+
+  server {
+    listen 3306;                 # Listen on the default MySQL port
+    proxy_pass mysql;            # Forward requests to the upstream block
+  }
+
+  upstream postgresql {
+    server 172.31.16.14:32543;  # The internal IP and port of your PostgreSQL service
+  }
+
+  server {
+    listen 5432;                 # Listen on the default PostgreSQL port
+    proxy_pass postgresql;       # Forward requests to the upstream block
+  }
+}
