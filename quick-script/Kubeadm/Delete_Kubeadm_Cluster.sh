@@ -45,7 +45,10 @@ cleanup() {
 # Kill remaining Kubernetes processes
 kill_processes() {
     log "Killing remaining Kubernetes processes..."
-    pkill -9 kube-apiserver kube-controller-manager kube-scheduler etcd || true
+    sudo pkill -9 kube-apiserver
+    sudo pkill -9 kube-controller-manager
+    sudo pkill -9 kube-scheduler
+    sudo pkill -9 etcd
 }
 
 # Clean up network rules
@@ -75,3 +78,5 @@ main() {
 
 # Start the uninstallation
 main
+
+sudo netstat -tuln | grep -E '6443|10257|10259|2379|2380'
