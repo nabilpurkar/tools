@@ -154,6 +154,20 @@ delete_nodegroup() {
         return 0
     fi
 
+    # Check and delete PDBs with label selector
+    print_message "$YELLOW" "Checking for any Pod Disruption Budgets (PDBs) associated with nodegroup: $nodegroup_name"
+    pdbs=$(kubectl get pdb -A -l "eks.amazonaws.com/nodegroup=$nodegroup_name" -o jsonpath='{.items[*].metadata.name}')
+    if [[ -n "$pdbs" ]]; then
+        for pdb in $pdbs; do
+            print_message "$YELLOW" "Deleting PDB: $pdb"
+            kubectl delete pdb "$pdb" -A
+        done
+        print_message "$GREEN" "All associated PDBs deleted."
+    else
+        print_message "$GREEN" "No PDBs found for nodegroup: $nodegroup_name"
+    fi
+
+    # Proceed with nodegroup deletion
     print_message "$YELLOW" "Deleting nodegroup: $nodegroup_name from cluster: $cluster_name"
     if ! eksctl delete nodegroup --cluster="$cluster_name" --name="$nodegroup_name" --wait; then
         print_message "$RED" "Failed to delete nodegroup: $nodegroup_name"
