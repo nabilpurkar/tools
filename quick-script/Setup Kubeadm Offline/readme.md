@@ -177,8 +177,4 @@ For issues and feature requests:
 2. Create a feature branch
 3. Submit a pull request
 
-## Acknowledgments
 
-- Kubernetes community
-- Calico project
-- Containerd project
