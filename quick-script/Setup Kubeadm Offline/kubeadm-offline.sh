@@ -10,9 +10,9 @@ CRI_PACKAGE_TOOL_VERSION="1.28.0"
 CONTAINERD_VERSION="1.7.14"
 CNI_VERSION="v1.3.0"
 CALICO_VERSION="v3.26.1"
-PAUSE_REGISTRY_VERSION=3.9
-ETCD_IMAGE_VERSION=3.5.15-0
-CORE_DNS_IMAGE_VERSION=v1.10.1
+PAUSE_REGISTRY_VERSION="3.9"
+ETCD_IMAGE_VERSION="3.5.15-0"
+CORE_DNS_IMAGE_VERSION="v1.10.1"
 
 
 POD_NETWORK_CIDR="10.244.0.0/16"
@@ -240,7 +240,8 @@ install_packages() {
         
         # Update containerd configuration to use systemd cgroup driver
         sudo sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' /etc/containerd/config.toml
-        sudo sed -i 's|registry.k8s.io/pause:3.8|registry.k8s.io/pause:${PAUSE_REGISTRY_VERSION}|g' /etc/containerd/config.toml
+        sudo sed -i "s|registry.k8s.io/pause:3.8|registry.k8s.io/pause:${PAUSE_REGISTRY_VERSION}|g" /etc/containerd/config.toml
+
         
 
         
