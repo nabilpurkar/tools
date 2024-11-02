@@ -232,8 +232,7 @@ install_packages() {
             return 1
         }
 
-        # Create symlink for system-wide access
-        sudo ln -s /usr/local/bin/containerd /usr/bin/containerd
+
         # Create default containerd configuration
         sudo mkdir -p /etc/containerd
         sudo containerd config default | sudo tee /etc/containerd/config.toml > /dev/null
@@ -242,14 +241,15 @@ install_packages() {
         sudo sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' /etc/containerd/config.toml
         sudo sed -i "s|registry.k8s.io/pause:3.8|registry.k8s.io/pause:${PAUSE_REGISTRY_VERSION}|g" /etc/containerd/config.toml
 
-        
-
-        
+    
         # Configure and start service
         sudo systemctl daemon-reload
         sudo systemctl enable containerd
         sudo systemctl restart containerd
         sudo systemctl status containerd --no-pager
+
+        # Create symlink for system-wide access
+        sudo ln -s /usr/local/bin/containerd /usr/bin/containerd
     else
         echo "Error: Containerd archive not found at $CONTAINERD_TAR"
         return 1
@@ -544,7 +544,15 @@ load_images() {
 setup_master() {
     echo "Setting up master node..."
         
-    
+    # Verify installation directory exists
+    if [ -z "$INSTALL_PATH" ]; then
+        read -p "Enter the installation packages path: " INSTALL_PATH
+        if [ ! -d "$INSTALL_PATH" ]; then
+            echo "Error: Directory $INSTALL_PATH does not exist"
+            return 1
+        fi
+    fi
+
     # Ask user for initialization choice
     echo "=============================="
     echo "Choose master node setup type:"
@@ -552,10 +560,10 @@ setup_master() {
     echo "2. Join existing cluster as control plane"
     echo "3. Initialize new cluster (Offline)"
     echo "=============================="
-    read -p "Enter your choice [1-3]: " master_choice
+    read -p "Enter your choice [1-3]: " setup_type
     
 
-    case $master_choice in
+    case $setup_type in
         1)
             echo "Initializing new Kubernetes cluster (Online mode)..."
             read -p "Enter the API server IP address: " API_SERVER_IP
@@ -593,7 +601,7 @@ setup_master() {
 
             echo "All required images found. Proceeding with offline installation..."
             
-            # Initialize the cluster with corrected flags
+            # Initialize the cluster
             if sudo kubeadm init \
                 --apiserver-advertise-address=${API_SERVER_IP} \
                 --pod-network-cidr=${POD_NETWORK_CIDR} \
@@ -602,7 +610,6 @@ setup_master() {
                 --cri-socket unix:///var/run/containerd/containerd.sock \
                 --v=5; then
 
-                
                 # Wait for admin.conf to be created
                 echo "Waiting for admin.conf to be created..."
                 for i in {1..30}; do
@@ -630,38 +637,46 @@ setup_master() {
             fi
             ;;
         *)
-            echo "Invalid choice. Exiting setup."
+            echo "Invalid setup type. Please choose 1, 2, or 3."
             return 1
             ;;
-esac
+    esac
 
+    # Setup kubeconfig with proper permissions
+    mkdir -p $HOME/.kube
+    sudo rm -f $HOME/.kube/config
+    sudo cp /etc/kubernetes/admin.conf $HOME/.kube/config
+    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+    chmod 600 $HOME/.kube/config
 
-    
-
-        # Setup kubeconfig with proper permissions
-        # Setup for current user
-        mkdir -p $HOME/.kube
-        sudo rm -f $HOME/.kube/config
-        sudo cp /etc/kubernetes/admin.conf $HOME/.kube/config
-        sudo chown $(id -u):$(id -g) $HOME/.kube/config
-        chmod 600 $HOME/.kube/config
-
-        # Setup for root user
-        sudo mkdir -p /root/.kube
-        sudo cp /etc/kubernetes/admin.conf /root/.kube/config
-        sudo chmod 600 /root/.kube/config
+    # Setup for root user
+    sudo mkdir -p /root/.kube
+    sudo cp /etc/kubernetes/admin.conf /root/.kube/config
+    sudo chmod 600 /root/.kube/config
             
-        # Export KUBECONFIG
-        export KUBECONFIG=$HOME/.kube/config
+    # Export KUBECONFIG
+    export KUBECONFIG=$HOME/.kube/config
     
-    # Apply Calico network (only for init, not join)
-    if [ "$master_choice" == "1" ]; then
+    # Apply Calico network (only for init cases, not join)
+    if [ "$setup_type" == "1" ] || [ "$setup_type" == "3" ]; then
         echo "Applying Calico network..."
-        kubectl apply -f $INSTALL_PATH/calico-${CALICO_VERSION}.yaml
+        if [ -f "${INSTALL_PATH}/calico-${CALICO_VERSION}.yaml" ]; then
+            kubectl apply -f "${INSTALL_PATH}/calico-${CALICO_VERSION}.yaml"
+            if [ $? -eq 0 ]; then
+                echo "Calico network applied successfully"
+            else
+                echo "Failed to apply Calico network. Please check the manifest file and try again"
+                return 1
+            fi
+        else
+            echo "Error: Calico manifest file not found at ${INSTALL_PATH}/calico-${CALICO_VERSION}.yaml"
+            return 1
+        fi
     fi
     
     echo "Master node setup completed!"
 }
+
 
 setup_worker() {
     echo "Setting up worker node..."
