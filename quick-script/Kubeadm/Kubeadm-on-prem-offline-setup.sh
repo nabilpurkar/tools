@@ -16,60 +16,105 @@ CNI_VERSION="v1.3.0"
 # Create required directories
 mkdir -p "${PACKAGES_DIR}"/{docker_rpm,kubeadm,images}
 
-# Function to check container runtime
-check_container_runtime() {
-    if command -v docker &> /dev/null; then
-        echo "docker"
-    elif command -v podman &> /dev/null; then
-        echo "podman"
-    else
-        echo "none"
-    fi
-}
 
 show_menu() {
     clear
-    echo "==================================="
-    echo "Kubernetes Offline Setup Menu"
-    echo "==================================="
-    echo "1. Download Required Packages (Master)"
-    echo "2. Save Kubernetes Images (Master)"
-    echo "3. Transfer Files to Worker Node"
-    echo "4. Install Packages (Worker/Master)"
-    echo "5. Load Images (Worker/Master)"
-    echo "6. Setup Master Node"
-    echo "7. Setup Worker Node"
-    echo "8. Generate Join Commands"
-    echo "9. Exit"
-    echo "==================================="
+    echo -e "\033[1;36m┌────────────────────────────────────────────────────────┐\033[0m"
+    echo -e "\033[1;36m│\033[0m               \033[1;33mKubernetes Offline Setup\033[0m                \033[1;36m│\033[0m"
+    echo -e "\033[1;36m├────────────────────────────────────────────────────────┤\033[0m"
+    echo -e "\033[1;36m│\033[0m                                                        \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m  \033[1;32m1.\033[0m \033[1;37mDownload Required Packages\033[0m                      \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m     \033[1;30m[Internet Required] [Master/Worker]\033[0m                \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m                                                        \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m  \033[1;32m2.\033[0m \033[1;37mSave Kubernetes Images\033[0m                          \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m     \033[1;30m[Internet Required] [Master/Worker]\033[0m                \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m                                                        \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m  \033[1;32m3.\033[0m \033[1;37mTransfer Files\033[0m                                  \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m                                                        \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m  \033[1;32m4.\033[0m \033[1;37mInstall Packages\033[0m                                \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m     \033[1;30m[Master/Worker]\033[0m                                    \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m                                                        \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m  \033[1;32m5.\033[0m \033[1;37mLoad Images\033[0m                                     \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m     \033[1;30m[Master/Worker]\033[0m                                    \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m                                                        \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m  \033[1;32m6.\033[0m \033[1;37mSetup Master Node\033[0m                               \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m                                                        \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m  \033[1;32m7.\033[0m \033[1;37mSetup Worker Node\033[0m                               \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m                                                        \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m  \033[1;32m8.\033[0m \033[1;37mGenerate Join Commands\033[0m                          \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m                                                        \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m  \033[1;31m9.\033[0m \033[1;37mExit\033[0m                                           \033[1;36m│\033[0m"
+    echo -e "\033[1;36m│\033[0m                                                        \033[1;36m│\033[0m"
+    echo -e "\033[1;36m└────────────────────────────────────────────────────────┘\033[0m"
+    echo
+    echo -e "\033[1;33mPlease enter your choice [1-9]:\033[0m "
 }
+
+
+configure_prerequisites() {
+    echo "Configuring system prerequisites..."
+    
+    # Disable swap
+    sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+    sudo swapoff -a
+    
+    # Load required modules
+    sudo tee /etc/modules-load.d/containerd.conf <<EOF
+overlay
+br_netfilter
+EOF
+    
+    # Load modules immediately
+    sudo modprobe overlay
+    sudo modprobe br_netfilter
+    
+    # Setup required sysctl params
+    sudo tee /etc/sysctl.d/kubernetes.conf <<EOF
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+EOF
+    
+    # Apply sysctl params without reboot
+    sudo sysctl --system
+}
+
 
 download_packages() {
     echo "Downloading required packages..."
     
-    # Docker packages
-    sudo yum install -y yum-utils
-    sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+    # Ask for node type
+    read -p "Do You Want To Download Packages For (Master/Worker): " NODE_TYPE
+    case "${NODE_TYPE,,}" in
+        master|worker)
+            echo "Downloading packages for ${NODE_TYPE} node..."
+            ;;
+        *)
+            echo "Invalid node type. Please specify 'master' or 'worker'"
+            return 1
+            ;;
+    esac
+
+    # Create necessary directories
+    mkdir -p ${PACKAGES_DIR}/{kubeadm,containerd}
     
-    # Download Docker dependencies
-    sudo yumdownloader --assumeyes --destdir=${PACKAGES_DIR}/docker_rpm/yum --resolve yum-utils
-    sudo yumdownloader --assumeyes --destdir=${PACKAGES_DIR}/docker_rpm/dm --resolve device-mapper-persistent-data
-    sudo yumdownloader --assumeyes --destdir=${PACKAGES_DIR}/docker_rpm/lvm2 --resolve lvm2
-    sudo yumdownloader --assumeyes --destdir=${PACKAGES_DIR}/docker_rpm/docker-ce --resolve docker-ce
-    sudo yumdownloader --assumeyes --destdir=${PACKAGES_DIR}/docker_rpm/se --resolve container-selinux
-
-
-
     # Download containerd
+    echo "Downloading containerd..."
     curl -L "https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-amd64.tar.gz" \
-        -o "${PACKAGES_DIR}/containerd-${CONTAINERD_VERSION}-linux-amd64.tar.gz"
+        -o "${PACKAGES_DIR}/containerd/containerd-${CONTAINERD_VERSION}-linux-amd64.tar.gz"
+    
+    # Download containerd service file
+    echo "Downloading containerd service file..."
+    curl -L "https://raw.githubusercontent.com/containerd/containerd/main/containerd.service" \
+        -o "${PACKAGES_DIR}/containerd/containerd.service"
 
     # Download CNI plugins
+    echo "Downloading CNI plugins..."
     curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-amd64-${CNI_VERSION}.tgz" \
         -o "${PACKAGES_DIR}/cni-plugins-linux-amd64-${CNI_VERSION}.tgz"
 
-
-    # Setup Kubernetes repo
+    # Setup Kubernetes repo for yumdownloader
+    echo "Setting up Kubernetes repository..."
     cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
 [kubernetes]
 name=Kubernetes
@@ -79,90 +124,167 @@ gpgcheck=1
 gpgkey=https://pkgs.k8s.io/core:/stable:/${KUBERNETES_REPO_VERSION}/rpm/repodata/repomd.xml.key
 EOF
 
-    # Download Kubernetes packages
+    # Clean and update repos
     sudo yum clean all
     sudo yum makecache
-    
 
+    # Download common dependencies including runc
+    echo "Downloading common dependencies..."
     sudo yumdownloader --assumeyes --destdir="${PACKAGES_DIR}/kubeadm" --resolve \
-    "kubelet-${KUBELET_VERSION}.$(uname -m)" \
-    "kubeadm-${KUBEADM_VERSION}.$(uname -m)" \
-    "kubectl-${KUBECTL_VERSION}.$(uname -m)" \
-        ebtables
+        conntrack-tools \
+        socat \
+        "kubernetes-cni >= 1.2.0" \
+        "cri-tools >= 1.28.0" \
+        ebtables \
+        ethtool \
+        iptables \
+        runc
 
-    # Download Calico manifest
-    curl -L "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/calico.yaml" \
-        -o "${PACKAGES_DIR}/calico-${CALICO_VERSION}.yaml"
+    # Download Kubernetes packages based on node type
+    echo "Downloading Kubernetes packages..."
+    if [ "${NODE_TYPE,,}" = "master" ]; then
+        # Master node packages
+        sudo yumdownloader --assumeyes --destdir="${PACKAGES_DIR}/kubeadm" --resolve \
+            "kubelet-${KUBELET_VERSION}.$(uname -m)" \
+            "kubeadm-${KUBEADM_VERSION}.$(uname -m)" \
+            "kubectl-${KUBECTL_VERSION}.$(uname -m)"
+
+        # Download Calico manifest
+        echo "Downloading Calico manifest..."
+        curl -L "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/calico.yaml" \
+            -o "${PACKAGES_DIR}/calico-${CALICO_VERSION}.yaml"
+    else
+        # Worker node packages
+        sudo yumdownloader --assumeyes --destdir="${PACKAGES_DIR}/kubeadm" --resolve \
+            "kubelet-${KUBELET_VERSION}.$(uname -m)" \
+            "kubeadm-${KUBEADM_VERSION}.$(uname -m)"
+    fi
     
-    echo "Packages downloaded successfully!"
+    echo "Packages downloaded successfully for ${NODE_TYPE} node!"
 }
+
+
 
 install_packages() {
     echo "Installing packages..."
     
-    # Install Docker packages
-    echo "Docker packages..."
-    sudo yum install -y --cacheonly --disablerepo=* ${PACKAGES_DIR}/docker_rpm/yum/*.rpm
-    sudo yum install -y --cacheonly --disablerepo=* ${PACKAGES_DIR}/docker_rpm/dm/*.rpm
-    sudo yum install -y --cacheonly --disablerepo=* ${PACKAGES_DIR}/docker_rpm/lvm2/*.rpm
-    sudo yum install -y --cacheonly --disablerepo=* ${PACKAGES_DIR}/docker_rpm/se/*.rpm
-    sudo yum install -y --cacheonly --disablerepo=* ${PACKAGES_DIR}/docker_rpm/docker-ce/*.rpm
-
-    # Start Docker
-    echo "Starting Docker"
-    sudo systemctl enable docker
-    sudo systemctl start docker
-    sudo usermod -aG docker $USER
+    # Verify installation directory exists
+    if [ -z "$INSTALL_PATH" ]; then
+        read -p "Enter the installation packages path: " INSTALL_PATH
+        if [ ! -d "$INSTALL_PATH" ]; then
+            echo "Error: Directory $INSTALL_PATH does not exist"
+            return 1
+        fi
+    fi
+    
+    # Ask for node type if not already set
+    if [ -z "$NODE_TYPE" ]; then
+        read -p "Is this a master or worker node? (master/worker): " NODE_TYPE
+        case "${NODE_TYPE,,}" in
+            master|worker)
+                echo "Installing packages for ${NODE_TYPE} node..."
+                ;;
+            *)
+                echo "Invalid node type. Please specify 'master' or 'worker'"
+                return 1
+                ;;
+        esac
+    fi
+    
+    # Ask for node type if not already set
+    if [ -z "$NODE_TYPE" ]; then
+        read -p "Is this a master or worker node? (master/worker): " NODE_TYPE
+        case "${NODE_TYPE,,}" in
+            master|worker)
+                echo "Installing packages for ${NODE_TYPE} node..."
+                ;;
+            *)
+                echo "Invalid node type. Please specify 'master' or 'worker'"
+                return 1
+                ;;
+        esac
+    fi
+    
+    configure_prerequisites
 
     # Install containerd
-    echo "Install containerd"
-    sudo tar -xzf ${PACKAGES_DIR}/containerd-${CONTAINERD_VERSION}-linux-amd64.tar.gz -C /usr/local/bin/
-    sudo mkdir -p /etc/containerd
-    sudo containerd config default | sudo tee /etc/containerd/config.toml >/dev/null
-    sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
-
-    # Configure system for containerd
-    sudo modprobe br_netfilter
-    sudo mkdir -p /proc/sys/net/bridge
-    sudo bash -c 'echo "1" > /proc/sys/net/bridge/bridge-nf-call-iptables'
-    sudo bash -c 'echo "1" > /proc/sys/net/bridge/bridge-nf-call-ip6tables'
-    sudo bash -c 'echo "1" > /proc/sys/net/ipv4/ip_forward'
+    echo "Installing containerd..."
+    CONTAINERD_TAR="${INSTALL_PATH}/containerd/containerd-${CONTAINERD_VERSION}-linux-amd64.tar.gz"
+    if [ -f "$CONTAINERD_TAR" ]; then
+        sudo tar -C /usr/local -xzf "$CONTAINERD_TAR"
+        
+        # Install containerd service file
+        sudo cp "${INSTALL_PATH}/containerd/containerd.service" /usr/lib/systemd/system/
+        
+        # Ensure runc is installed before configuring containerd
+        echo "Installing runc..."
+        sudo rpm -Uvh --force --nodeps "${INSTALL_PATH}/kubeadm/runc"*.rpm || {
+            echo "Error: Failed to install runc"
+            return 1
+        }
+        
+        # Create default containerd configuration
+        sudo mkdir -p /etc/containerd
+        sudo containerd config default | sudo tee /etc/containerd/config.toml > /dev/null
+        
+        # Update containerd configuration to use systemd cgroup driver
+        sudo sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' /etc/containerd/config.toml
+        sudo sed -i 's|registry.k8s.io/pause:3.8|registry.k8s.io/pause:3.9|g' /etc/containerd/config.toml
+        
+        sudo systemctl daemon-reload
+        sudo systemctl enable containerd
+        sudo systemctl restart containerd
+        sudo systemctl status containerd --no-pager
+    else
+        echo "Error: Containerd archive not found at $CONTAINERD_TAR"
+        return 1
+    fi
     
-    # Make network settings persistent
-    sudo bash -c 'cat <<EOF > /etc/sysctl.d/k8s.conf
-net.bridge.bridge-nf-call-iptables  = 1
-net.bridge.bridge-nf-call-ip6tables = 1
-net.ipv4.ip_forward                 = 1
-EOF'
-
-    sudo sysctl --system
-
-    # Start containerd
-    sudo systemctl enable containerd
-    sudo systemctl restart containerd
-
 
     # Install CNI plugins
+    echo "Installing CNI plugins..."
     sudo mkdir -p /opt/cni/bin
-    sudo tar -xzf ${PACKAGES_DIR}/cni-plugins-linux-amd64-${CNI_VERSION}.tgz -C /opt/cni/bin
+    sudo tar -xzf ${INSTALL_PATH}/cni-plugins-linux-amd64-${CNI_VERSION}.tgz -C /opt/cni/bin
 
-    # Install Kubernetes packages
-    sudo yum install -y --cacheonly --disablerepo=* ${PACKAGES_DIR}/kubeadm/*.rpm --allowerasing --skip-broken
-    sudo systemctl enable kubelet.service
+    # Install Kubernetes components
+    echo "Installing Kubernetes components..."
+    cd "${INSTALL_PATH}/kubeadm" || return 1
 
-    echo "Packages installed successfully!"
-}
+    # Install dependencies first
+    echo "Installing dependencies..."
+    sudo rpm -Uvh --force --nodeps conntrack-tools*.rpm kubernetes-cni*.rpm cri-tools*.rpm 2>/dev/null || true
 
-
-check_container_runtime() {
-    if command -v docker &> /dev/null; then
-        echo "docker"
-    elif command -v podman &> /dev/null; then
-        echo "podman"
+    # Install main components based on node type
+    if [ "${NODE_TYPE,,}" = "master" ]; then
+        for pkg in kubelet-*.rpm kubeadm-*.rpm kubectl-*.rpm; do
+            if [ -f "$pkg" ]; then
+                sudo rpm -Uvh --force --nodeps "$pkg" || echo "Warning: Failed to install $pkg"
+            fi
+        done
     else
-        echo "none"
+        for pkg in kubelet-*.rpm kubeadm-*.rpm; do
+            if [ -f "$pkg" ]; then
+                sudo rpm -Uvh --force --nodeps "$pkg" || echo "Warning: Failed to install $pkg"
+            fi
+        done
     fi
+
+    # Configure kubelet
+    sudo mkdir -p /var/lib/kubelet
+    cat <<EOF | sudo tee /var/lib/kubelet/config.yaml
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd
+resolvConf: /run/systemd/resolve/resolv.conf
+EOF
+
+    # Enable kubelet
+    sudo systemctl enable kubelet
+
+    echo "Kubernetes components installed successfully!"
+    return 0
 }
+
 
 
 transfer_files() {
@@ -242,81 +364,161 @@ transfer_files() {
 }
 
 
-
 save_images() {
     echo "Saving Kubernetes images..."
+    # Ask for node type
+    echo "Do You Want To Save Images For Master or Worker Node (master/worker)?"
+    read -p "Enter your choice (master/worker): " NODE_TYPE
+    case "${NODE_TYPE,,}" in
+        master|worker)
+            echo "Saving images for ${NODE_TYPE} node..."
+            ;;
+        *)
+            echo "Invalid node type. Please specify 'master' or 'worker'"
+            return 1
+            ;;
+    esac
+    
     cd "${PACKAGES_DIR}"
     
-    # List of images
-    images=(
+    # Common images for both master and worker
+    common_images=(
+        "registry.k8s.io/kube-proxy:v${K8S_VERSION}"
+        "registry.k8s.io/pause:3.9"
+        "registry.k8s.io/pause:3.8"
+    )
+    
+    # Master-specific images
+    master_images=(
         "registry.k8s.io/kube-apiserver:v${K8S_VERSION}"
         "registry.k8s.io/kube-controller-manager:v${K8S_VERSION}"
         "registry.k8s.io/kube-scheduler:v${K8S_VERSION}"
-        "registry.k8s.io/kube-proxy:v${K8S_VERSION}"
-        "registry.k8s.io/pause:3.9"
-        "registry.k8s.io/etcd:3.5.9-0"
+        "registry.k8s.io/etcd:3.5.15-0"
         "registry.k8s.io/coredns/coredns:v1.10.1"
         "docker.io/calico/cni:${CALICO_VERSION}"
         "docker.io/calico/node:${CALICO_VERSION}"
         "docker.io/calico/kube-controllers:${CALICO_VERSION}"
     )
+
+    # Initialize images array with common images
+    images=("${common_images[@]}")
     
-    # Pull images first
+    # Add master-specific images if this is a master node
+    if [ "${NODE_TYPE,,}" = "master" ]; then
+        images+=("${master_images[@]}")
+        archive_name="k8s-master-images.tar"
+    else
+        archive_name="k8s-worker-images.tar"
+    fi
+    
+    # Pull images
+    echo "Pulling images for ${NODE_TYPE} node..."
     for img in "${images[@]}"; do
         echo "Pulling $img..."
-        sudo docker pull "$img" || {
+        sudo crictl pull "$img" || {
             echo "Failed to pull $img"
             continue
         }
     done
 
-    # Save all images in a single archive
-    echo "Saving images..."
-    image_list=""
-    for img in "${images[@]}"; do
-        image_list+=" $img"
-    done
+    # Create a manifest file
+    manifest_file="${PACKAGES_DIR}/image_manifest.txt"
+    printf "%s\n" "${images[@]}" > "$manifest_file"
     
-    # Create single uncompressed tar archive
-    echo "Creating archive..."
-    sudo docker save ${image_list} -o k8s-images.tar
+    # Create directory for individual tars
+    mkdir -p "${PACKAGES_DIR}/images"
+    
+    # Save each image individually
+    echo "Saving images..."
+    for img in "${images[@]}"; do
+        echo "Saving $img..."
+        # Create a safe filename from the image name
+        safe_name=$(echo "$img" | tr '/:' '_')
+        # Export the image
+        sudo /usr/local/bin/ctr -n=k8s.io images export "${PACKAGES_DIR}/images/${safe_name}.tar" "$img" || {
+            echo "Failed to save $img"
+            continue
+        }
+    done
 
-    echo "Successfully saved images to k8s-images.tar"
-    ls -lh k8s-images.tar
+    # Create final archive
+    echo "Creating archive ${archive_name}..."
+    tar czf "${archive_name}" -C "${PACKAGES_DIR}" images image_manifest.txt
+    
+    # Cleanup
+    rm -rf "${PACKAGES_DIR}/images"
+    
+    echo "Successfully saved images to ${archive_name}"
+    ls -lh "${archive_name}"
 }
 
 load_images() {
     echo "Loading Kubernetes images..."
 
-    # Debug: Print current directory
-    echo "Current directory: $(pwd)"
-    
-    # Debug: Check if PACKAGES_DIR is set
-    echo "PACKAGES_DIR value: ${PACKAGES_DIR}"
-    
-    ls -ltr -h "${PACKAGES_DIR}"
-
-    # Change directory with verification
-    cd "${PACKAGES_DIR}" || {
-        echo "Failed to change to directory: ${PACKAGES_DIR}"
-        return 1
-    }
-
-    # Check for archive
-    if [ ! -f "k8s-images.tar" ]; then
-        echo "Error: k8s-images.tar not found!"
+    # Always ask for installation path first
+    read -p "Enter the installation packages path: " INSTALL_PATH
+    if [ ! -d "$INSTALL_PATH" ]; then
+        echo "Error: Directory $INSTALL_PATH does not exist"
         return 1
     fi
 
-    # Load images directly
+    # Ask for node type
+    read -p "Is this a master or worker node? (master/worker): " NODE_TYPE
+    case "${NODE_TYPE,,}" in
+        master|worker)
+            echo "Loading images for ${NODE_TYPE} node..."
+            ;;
+        *)
+            echo "Invalid node type. Please specify 'master' or 'worker'"
+            return 1
+            ;;
+    esac
+
+    # Set archive name based on node type
+    local archive_name
+    if [ "${NODE_TYPE,,}" = "master" ]; then
+        archive_name="${INSTALL_PATH}/k8s-master-images.tar"
+    else
+        archive_name="${INSTALL_PATH}/k8s-worker-images.tar"
+    fi
+
+    # Check for archive
+    if [ ! -f "${archive_name}" ]; then
+        echo "Error: ${archive_name} not found!"
+        return 1
+    fi
+
+    # Create temporary directory
+    temp_dir=$(mktemp -d)
+    trap 'rm -rf "${temp_dir}"' EXIT
+
+    # Extract archive
+    echo "Extracting images..."
+    tar xzf "${archive_name}" -C "${temp_dir}"
+
+    # Load images
     echo "Loading images..."
-    sudo docker load -i /home/ec2-user/packages/k8s-images.tar
+    for image_tar in "${temp_dir}"/images/*.tar; do
+        echo "Loading ${image_tar}..."
+        sudo /usr/local/bin/ctr -n=k8s.io images import "${image_tar}" || {
+            echo "Failed to load ${image_tar}"
+            continue
+        }
+    done
 
+    # Verify loaded images
     echo "Verifying loaded images..."
-    sudo docker images | grep -E 'k8s.io|calico'
+    if [ "${NODE_TYPE,,}" = "master" ]; then
+        echo "Master node images:"
+        sudo crictl images | grep -E 'k8s.io|calico'
+    else
+        echo "Worker node images:"
+        sudo crictl images | grep -E 'pause|kube-proxy'
+    fi
+    
+    echo "Images loaded successfully for ${NODE_TYPE} node!"
+    return 0
 }
-
-
 
 setup_master() {
     echo "Setting up master node..."
@@ -337,15 +539,16 @@ EOF
     # Ask user for initialization choice
     echo "=============================="
     echo "Choose master node setup type:"
-    echo "1. Initialize new cluster"
+    echo "1. Initialize new cluster (Online)"
     echo "2. Join existing cluster as control plane"
+    echo "3. Initialize new cluster (Offline)"
     echo "=============================="
-    read -p "Enter your choice [1-2]: " master_choice
+    read -p "Enter your choice [1-3]: " master_choice
     
 
     case $master_choice in
         1)
-            echo "Initializing new Kubernetes cluster..."
+            echo "Initializing new Kubernetes cluster (Online mode)..."
             read -p "Enter the API server IP address: " API_SERVER_IP
             sudo kubeadm init \
                 --pod-network-cidr=${POD_NETWORK_CIDR} \
@@ -358,11 +561,72 @@ EOF
             read -p "Join command: " join_command
             eval sudo $join_command
             ;;
+        3)
+            echo "Initializing new Kubernetes cluster (Offline mode)..."
+            read -p "Enter the API server IP address: " API_SERVER_IP
+            
+            # Verify required images are present (base names only)
+            echo "Verifying required images..."
+            missing_images=0
+            
+            # Check core K8s images
+            for image in "kube-apiserver" "kube-controller-manager" "kube-scheduler" "kube-proxy" "pause" "etcd" "coredns"; do
+                if ! sudo crictl image ls | grep -q "$image"; then
+                    echo "Missing required image: $image"
+                    missing_images=1
+                fi
+            done
+
+            if [ $missing_images -eq 1 ]; then
+                echo "Error: Some required images are missing. Please load all required images first."
+                return 1
+            fi
+
+            echo "All required images found. Proceeding with offline installation..."
+            
+            # Initialize the cluster with corrected flags
+            if sudo kubeadm init \
+                --apiserver-advertise-address=${API_SERVER_IP} \
+                --pod-network-cidr=${POD_NETWORK_CIDR} \
+                --kubernetes-version=${K8S_VERSION} \
+                --ignore-preflight-errors=SystemVerification \
+                --cri-socket unix:///var/run/containerd/containerd.sock \
+                --v=5; then
+
+                
+                # Wait for admin.conf to be created
+                echo "Waiting for admin.conf to be created..."
+                for i in {1..30}; do
+                    if [ -f /etc/kubernetes/admin.conf ]; then
+                        break
+                    fi
+                    sleep 2
+                done
+
+                # Setup kubeconfig for the user
+                echo "Setting up kubeconfig..."
+                mkdir -p $HOME/.kube
+                if [ -f /etc/kubernetes/admin.conf ]; then
+                    sudo chmod 600 /etc/kubernetes/admin.conf
+                    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+                    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+                    echo "Kubeconfig setup completed successfully"
+                    sudo chmod 600 $HOME/.kube/config
+                else
+                    echo "Warning: admin.conf not found. You may need to manually set up kubeconfig"
+                fi
+            else
+                echo "Failed to initialize Kubernetes cluster"
+                return 1
+            fi
+            ;;
         *)
             echo "Invalid choice. Exiting setup."
             return 1
             ;;
-    esac
+esac
+
+
     
 
         # Setup kubeconfig with proper permissions
@@ -384,7 +648,7 @@ EOF
     # Apply Calico network (only for init, not join)
     if [ "$master_choice" == "1" ]; then
         echo "Applying Calico network..."
-        kubectl apply -f ${PACKAGES_DIR}/calico-${CALICO_VERSION}.yaml
+        kubectl apply -f $INSTALL_PATH/calico-${CALICO_VERSION}.yaml
     fi
     
     echo "Master node setup completed!"
@@ -416,12 +680,12 @@ EOF
 
 # Function to generate new join commands from existing master
 generate_join_commands() {
-    print_color "green" "Generating new join commands for existing cluster..."
+    echo "Generating new join commands for existing cluster..."
     
     # Check if this is actually a master node
     if ! kubectl get nodes &>/dev/null; then
-        print_color "red" "Error: Unable to access the cluster. Is this a master node?"
-        print_color "red" "Make sure you have valid kubeconfig (/etc/kubernetes/admin.conf)"
+        echo "Error: Unable to access the cluster. Is this a master node?"
+        echo "Make sure you have valid kubeconfig (/etc/kubernetes/admin.conf)"
         return 1
     fi
     
@@ -443,28 +707,24 @@ generate_join_commands() {
     CERT_KEY=$(kubeadm init phase upload-certs --upload-certs 2>/dev/null | tail -1)
     
     # Create worker join command
-    echo "kubeadm join ${API_SERVER_IP}:6443 --token ${NEW_TOKEN} --discovery-token-ca-cert-hash sha256:${CA_CERT_HASH}" \
-         > /root/cluster-join/worker-join.txt
+    echo "kubeadm join ${API_SERVER_IP}:6443 --token ${NEW_TOKEN} --discovery-token-ca-cert-hash sha256:${CA_CERT_HASH}" > /root/cluster-join/worker-join.txt
     
     # Create control-plane join command
-    echo "kubeadm join ${API_SERVER_IP}:6443 --token ${NEW_TOKEN} --discovery-token-ca-cert-hash sha256:${CA_CERT_HASH} --control-plane --certificate-key ${CERT_KEY}" \
-         > /root/cluster-join/control-plane-join.txt
+    echo "kubeadm join ${API_SERVER_IP}:6443 --token ${NEW_TOKEN} --discovery-token-ca-cert-hash sha256:${CA_CERT_HASH} --control-plane --certificate-key ${CERT_KEY}" > /root/cluster-join/control-plane-join.txt
     
     # Save certificate key separately
-    echo "$CERT_KEY" > /root/cluster-join/certificate-key.txt
+    echo "${CERT_KEY}" > /root/cluster-join/certificate-key.txt
     
     # Secure the files
     chmod 600 /root/cluster-join/*
     
-    print_color "green" "Join commands generated successfully!"
+    echo "Join commands generated successfully!"
     echo "Join commands are saved in /root/cluster-join/"
     echo "- Control plane join command: /root/cluster-join/control-plane-join.txt"
     echo "- Worker join command: /root/cluster-join/worker-join.txt"
     echo "- Certificate key: /root/cluster-join/certificate-key.txt"
-    print_color "yellow" "SECURITY NOTE: These files contain sensitive information!"
-    echo "Transfer them securely to the new nodes and delete when done."
+    echo "SECURITY NOTE: These files contain sensitive information!"
 }
-
 
 # Main loop
 while true; do
