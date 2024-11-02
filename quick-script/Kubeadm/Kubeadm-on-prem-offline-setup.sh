@@ -5,13 +5,21 @@ KUBERNETES_REPO_VERSION="${KUBERNETES_REPO_VERSION:-v1.28}"
 KUBELET_VERSION="1.28.15-150500.1.1"
 KUBEADM_VERSION="1.28.15-150500.1.1"
 KUBECTL_VERSION="1.28.15-150500.1.1"
-POD_NETWORK_CIDR="10.244.0.0/16"
-
-CALICO_VERSION="v3.26.1"
-BASE_DIR="${HOME}"
-PACKAGES_DIR="${BASE_DIR}/packages"
+KUBERNETES_PACKAGE_CNI_VERSION="1.2.0"
+CRI_PACKAGE_TOOL_VERSION="1.28.0"
 CONTAINERD_VERSION="1.7.14"
 CNI_VERSION="v1.3.0"
+CALICO_VERSION="v3.26.1"
+PAUSE_REGISTRY_VERSION=3.9
+ETCD_IMAGE_VERSION=3.5.15-0
+CORE_DNS_IMAGE_VERSION=v1.10.1
+
+
+POD_NETWORK_CIDR="10.244.0.0/16"
+
+BASE_DIR="${HOME}"
+PACKAGES_DIR="${BASE_DIR}/packages"
+
 
 # Create required directories
 mkdir -p "${PACKAGES_DIR}"/{docker_rpm,kubeadm,images}
@@ -133,8 +141,8 @@ EOF
     sudo yumdownloader --assumeyes --destdir="${PACKAGES_DIR}/kubeadm" --resolve \
         conntrack-tools \
         socat \
-        "kubernetes-cni >= 1.2.0" \
-        "cri-tools >= 1.28.0" \
+        "kubernetes-cni >= ${KUBERNETES_PACKAGE_CNI_VERSION}" \
+        "cri-tools >= ${CRI_PACKAGE_TOOL_VERSION}" \
         ebtables \
         ethtool \
         iptables \
@@ -207,30 +215,36 @@ install_packages() {
     
     configure_prerequisites
 
-    # Install containerd
     echo "Installing containerd..."
     CONTAINERD_TAR="${INSTALL_PATH}/containerd/containerd-${CONTAINERD_VERSION}-linux-amd64.tar.gz"
     if [ -f "$CONTAINERD_TAR" ]; then
-        sudo tar -C /usr/local -xzf "$CONTAINERD_TAR"
+        # Extract containerd to /usr/local/bin instead of just /usr/local
+        sudo tar -C /usr/local/bin -xzf "$CONTAINERD_TAR"
         
         # Install containerd service file
         sudo cp "${INSTALL_PATH}/containerd/containerd.service" /usr/lib/systemd/system/
         
+
         # Ensure runc is installed before configuring containerd
         echo "Installing runc..."
         sudo rpm -Uvh --force --nodeps "${INSTALL_PATH}/kubeadm/runc"*.rpm || {
             echo "Error: Failed to install runc"
             return 1
         }
-        
+
+        # Create symlink for system-wide access
+        sudo ln -s /usr/local/bin/containerd /usr/bin/containerd
         # Create default containerd configuration
         sudo mkdir -p /etc/containerd
         sudo containerd config default | sudo tee /etc/containerd/config.toml > /dev/null
         
         # Update containerd configuration to use systemd cgroup driver
         sudo sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' /etc/containerd/config.toml
-        sudo sed -i 's|registry.k8s.io/pause:3.8|registry.k8s.io/pause:3.9|g' /etc/containerd/config.toml
+        sudo sed -i 's|registry.k8s.io/pause:3.8|registry.k8s.io/pause:${PAUSE_REGISTRY_VERSION}|g' /etc/containerd/config.toml
         
+
+        
+        # Configure and start service
         sudo systemctl daemon-reload
         sudo systemctl enable containerd
         sudo systemctl restart containerd
@@ -238,8 +252,7 @@ install_packages() {
     else
         echo "Error: Containerd archive not found at $CONTAINERD_TAR"
         return 1
-    fi
-    
+    fi    
 
     # Install CNI plugins
     echo "Installing CNI plugins..."
@@ -384,19 +397,26 @@ save_images() {
     # Common images for both master and worker
     common_images=(
         "registry.k8s.io/kube-proxy:v${K8S_VERSION}"
-        "registry.k8s.io/pause:3.9"
-        "registry.k8s.io/pause:3.8"
+
+        "registry.k8s.io/pause:${PAUSE_REGISTRY_VERSION}"
     )
     
     # Master-specific images
     master_images=(
         "registry.k8s.io/kube-apiserver:v${K8S_VERSION}"
+
         "registry.k8s.io/kube-controller-manager:v${K8S_VERSION}"
+
         "registry.k8s.io/kube-scheduler:v${K8S_VERSION}"
-        "registry.k8s.io/etcd:3.5.15-0"
-        "registry.k8s.io/coredns/coredns:v1.10.1"
+
+        "registry.k8s.io/etcd:${ETCD_IMAGE_VERSION}"
+
+        "registry.k8s.io/coredns/coredns:${CORE_DNS_IMAGE_VERSION}"
+
         "docker.io/calico/cni:${CALICO_VERSION}"
+
         "docker.io/calico/node:${CALICO_VERSION}"
+
         "docker.io/calico/kube-controllers:${CALICO_VERSION}"
     )
 
@@ -522,19 +542,7 @@ load_images() {
 
 setup_master() {
     echo "Setting up master node..."
-    
-    # Configure system settings
-    sudo setenforce 0
-    sudo sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
-
-    cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
-net.bridge.bridge-nf-call-ip6tables = 1
-net.bridge.bridge-nf-call-iptables = 1
-net.ipv4.ip_forward = 1
-EOF
-
-    sudo sysctl --system
-    
+        
     
     # Ask user for initialization choice
     echo "=============================="
@@ -656,22 +664,7 @@ esac
 
 setup_worker() {
     echo "Setting up worker node..."
-    
-    # Disable swap
-    sudo swapoff -a
-    
-    # Configure system settings
-    sudo setenforce 0
-    sudo sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
-    
-    cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
-net.bridge.bridge-nf-call-ip6tables = 1
-net.bridge.bridge-nf-call-iptables = 1
-net.ipv4.ip_forward = 1
-EOF
-    
-    sudo sysctl --system
-    
+        
     read -p "Enter the kubeadm join command from master: " JOIN_CMD
     sudo $JOIN_CMD
     
