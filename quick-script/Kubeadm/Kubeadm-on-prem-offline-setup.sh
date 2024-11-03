@@ -11,11 +11,11 @@ CONTAINERD_VERSION="1.7.14"
 CNI_VERSION="v1.3.0"
 CALICO_VERSION="v3.26.1"
 PAUSE_REGISTRY_VERSION="3.9"
-ETCD_IMAGE_VERSION=3.5.15-0
-CORE_DNS_IMAGE_VERSION=v1.10.1
+ETCD_IMAGE_VERSION="3.5.15-0"
+CORE_DNS_IMAGE_VERSION="v1.10.1"
 
 
-POD_NETWORK_CIDR="10.0.0.0/16"
+POD_NETWORK_CIDR="10.244.0.0/16"
 
 BASE_DIR="${HOME}"
 PACKAGES_DIR="${BASE_DIR}/packages"
@@ -70,23 +70,25 @@ configure_prerequisites() {
     sudo tee /etc/modules-load.d/containerd.conf <<EOF
 overlay
 br_netfilter
+nf_conntrack
 EOF
     
     # Load modules immediately
     sudo modprobe overlay
     sudo modprobe br_netfilter
+    sudo modprobe nf_conntrack
     
     # Setup required sysctl params
     sudo tee /etc/sysctl.d/kubernetes.conf <<EOF
 net.bridge.bridge-nf-call-ip6tables = 1
 net.bridge.bridge-nf-call-iptables = 1
 net.ipv4.ip_forward = 1
+net.netfilter.nf_conntrack_max = 131072
 EOF
     
     # Apply sysctl params without reboot
     sudo sysctl --system
 }
-
 
 download_packages() {
     echo "Downloading required packages..."
@@ -105,21 +107,6 @@ download_packages() {
 
     # Create necessary directories
     mkdir -p ${PACKAGES_DIR}/{kubeadm,containerd}
-    
-    # Download containerd
-    echo "Downloading containerd..."
-    curl -L "https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-amd64.tar.gz" \
-        -o "${PACKAGES_DIR}/containerd/containerd-${CONTAINERD_VERSION}-linux-amd64.tar.gz"
-    
-    # Download containerd service file
-    echo "Downloading containerd service file..."
-    curl -L "https://raw.githubusercontent.com/containerd/containerd/main/containerd.service" \
-        -o "${PACKAGES_DIR}/containerd/containerd.service"
-
-    # Download CNI plugins
-    echo "Downloading CNI plugins..."
-    curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-amd64-${CNI_VERSION}.tgz" \
-        -o "${PACKAGES_DIR}/cni-plugins-linux-amd64-${CNI_VERSION}.tgz"
 
     # Setup Kubernetes repo for yumdownloader
     echo "Setting up Kubernetes repository..."
@@ -136,6 +123,21 @@ EOF
     sudo yum clean all
     sudo yum makecache
 
+    # Download containerd
+    echo "Downloading containerd..."
+    curl -L "https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-amd64.tar.gz" \
+        -o "${PACKAGES_DIR}/containerd/containerd-${CONTAINERD_VERSION}-linux-amd64.tar.gz"
+    
+    # Download containerd service file
+    echo "Downloading containerd service file..."
+    curl -L "https://raw.githubusercontent.com/containerd/containerd/main/containerd.service" \
+        -o "${PACKAGES_DIR}/containerd/containerd.service"
+
+    # Download CNI plugins
+    echo "Downloading CNI plugins..."
+    curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-amd64-${CNI_VERSION}.tgz" \
+        -o "${PACKAGES_DIR}/cni-plugins-linux-amd64-${CNI_VERSION}.tgz"
+
     # Download common dependencies including runc
     echo "Downloading common dependencies..."
     sudo yumdownloader --assumeyes --destdir="${PACKAGES_DIR}/kubeadm" --resolve \
@@ -151,6 +153,7 @@ EOF
     # Download Kubernetes packages based on node type
     echo "Downloading Kubernetes packages..."
     if [ "${NODE_TYPE,,}" = "master" ]; then
+
         # Master node packages
         sudo yumdownloader --assumeyes --destdir="${PACKAGES_DIR}/kubeadm" --resolve \
             "kubelet-${KUBELET_VERSION}.$(uname -m)" \
@@ -162,6 +165,7 @@ EOF
         curl -L "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/calico.yaml" \
             -o "${PACKAGES_DIR}/calico-${CALICO_VERSION}.yaml"
     else
+
         # Worker node packages
         sudo yumdownloader --assumeyes --destdir="${PACKAGES_DIR}/kubeadm" --resolve \
             "kubelet-${KUBELET_VERSION}.$(uname -m)" \
@@ -170,7 +174,6 @@ EOF
     
     echo "Packages downloaded successfully for ${NODE_TYPE} node!"
 }
-
 
 
 install_packages() {
@@ -199,60 +202,86 @@ install_packages() {
         esac
     fi
     
-    # Ask for node type if not already set
-    if [ -z "$NODE_TYPE" ]; then
-        read -p "Is this a master or worker node? (master/worker): " NODE_TYPE
-        case "${NODE_TYPE,,}" in
-            master|worker)
-                echo "Installing packages for ${NODE_TYPE} node..."
-                ;;
-            *)
-                echo "Invalid node type. Please specify 'master' or 'worker'"
-                return 1
-                ;;
-        esac
-    fi
-    
-    configure_prerequisites
+    echo "Installing dependencies..."
+    # First verify if all required files exist
+    for pkg in conntrack-tools kubernetes-cni cri-tools ebtables ethtool iptables runc socat; do
+        if ! ls "${INSTALL_PATH}/kubeadm"/${pkg}*.rpm >/dev/null 2>&1; then
+            echo "Warning: ${pkg} RPM not found in ${INSTALL_PATH}/kubeadm/"
+        fi
+    done
+
+    # Install packages with error checking
+    for pkg in \
+        "${INSTALL_PATH}/kubeadm"/conntrack-tools*.rpm \
+        "${INSTALL_PATH}/kubeadm"/kubernetes-cni*.rpm \
+        "${INSTALL_PATH}/kubeadm"/cri-tools*.rpm \
+        "${INSTALL_PATH}/kubeadm"/ethtool*.rpm \
+        "${INSTALL_PATH}/kubeadm"/iptables*.rpm \
+        "${INSTALL_PATH}/kubeadm"/runc*.rpm \
+        "${INSTALL_PATH}/kubeadm"/socat*.rpm; do
+        if [ -f "$pkg" ]; then
+            echo "Installing $pkg..."
+            sudo rpm -Uvh --force --nodeps "$pkg" || echo "Failed to install $pkg"
+        fi
+    done
+
+    # Configure crictl
+    echo "Configuring crictl..."
+    cat <<EOF | sudo tee /etc/crictl.yaml
+runtime-endpoint: unix:///run/containerd/containerd.sock
+image-endpoint: unix:///run/containerd/containerd.sock
+timeout: 2
+debug: false
+pull-image-on-create: false
+EOF
+
+    # Verify installations
+    echo "Verifying installations..."
+    for cmd in crictl runc socat ethtool iptables; do
+        if command -v $cmd >/dev/null 2>&1; then
+            echo "$cmd is installed"
+        else
+            echo "Warning: $cmd is not available in PATH"
+        fi
+    done
 
     echo "Installing containerd..."
     CONTAINERD_TAR="${INSTALL_PATH}/containerd/containerd-${CONTAINERD_VERSION}-linux-amd64.tar.gz"
     if [ -f "$CONTAINERD_TAR" ]; then
-        # Extract containerd to /usr/local/bin instead of just /usr/local
-        sudo tar -C /usr/local/bin -xzf "$CONTAINERD_TAR"
+        # Remove existing containerd if any
+        sudo rm -f /usr/bin/containerd
+
+        # Extract containerd
+        sudo tar -C /usr/local -xzf "$CONTAINERD_TAR"
         
         # Install containerd service file
         sudo cp "${INSTALL_PATH}/containerd/containerd.service" /usr/lib/systemd/system/
         
-
-        # Ensure runc is installed before configuring containerd
-        echo "Installing runc..."
-        sudo rpm -Uvh --force --nodeps "${INSTALL_PATH}/kubeadm/runc"*.rpm || {
-            echo "Error: Failed to install runc"
-            return 1
-        }
-
-        # Create symlink for system-wide access
-        sudo ln -s /usr/local/bin/containerd /usr/bin/containerd
         # Create default containerd configuration
         sudo mkdir -p /etc/containerd
-        sudo containerd config default | sudo tee /etc/containerd/config.toml > /dev/null
+        
+        # Create symlink first
+        sudo ln -sf /usr/local/bin/containerd /usr/bin/containerd
+        
+        # Now generate config using the linked binary
+        sudo /usr/bin/containerd config default | sudo tee /etc/containerd/config.toml > /dev/null
         
         # Update containerd configuration to use systemd cgroup driver
         sudo sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' /etc/containerd/config.toml
         sudo sed -i "s|registry.k8s.io/pause:3.8|registry.k8s.io/pause:${PAUSE_REGISTRY_VERSION}|g" /etc/containerd/config.toml
-        
-
-        
+    
         # Configure and start service
         sudo systemctl daemon-reload
         sudo systemctl enable containerd
         sudo systemctl restart containerd
-        sudo systemctl status containerd --no-pager
+        
+        # Check status but continue even if there's an error
+        sudo systemctl status containerd --no-pager || true
+
     else
         echo "Error: Containerd archive not found at $CONTAINERD_TAR"
         return 1
-    fi    
+    fi
 
     # Install CNI plugins
     echo "Installing CNI plugins..."
@@ -262,10 +291,6 @@ install_packages() {
     # Install Kubernetes components
     echo "Installing Kubernetes components..."
     cd "${INSTALL_PATH}/kubeadm" || return 1
-
-    # Install dependencies first
-    echo "Installing dependencies..."
-    sudo rpm -Uvh --force --nodeps conntrack-tools*.rpm kubernetes-cni*.rpm cri-tools*.rpm 2>/dev/null || true
 
     # Install main components based on node type
     if [ "${NODE_TYPE,,}" = "master" ]; then
@@ -297,8 +322,6 @@ EOF
     echo "Kubernetes components installed successfully!"
     return 0
 }
-
-
 
 transfer_files() {
     echo "==================================="
@@ -375,7 +398,6 @@ transfer_files() {
         fi
     fi
 }
-
 
 save_images() {
     echo "Saving Kubernetes images..."
@@ -542,8 +564,16 @@ load_images() {
 
 setup_master() {
     echo "Setting up master node..."
-    configure_prerequisites
-    
+  
+    # Verify installation directory exists
+    if [ -z "$INSTALL_PATH" ]; then
+        read -p "Enter the installation packages path: " INSTALL_PATH
+        if [ ! -d "$INSTALL_PATH" ]; then
+            echo "Error: Directory $INSTALL_PATH does not exist"
+            return 1
+        fi
+    fi
+
     # Ask user for initialization choice
     echo "=============================="
     echo "Choose master node setup type:"
@@ -551,13 +581,14 @@ setup_master() {
     echo "2. Join existing cluster as control plane"
     echo "3. Initialize new cluster (Offline)"
     echo "=============================="
-    read -p "Enter your choice [1-3]: " master_choice
+    read -p "Enter your choice [1-3]: " setup_type
     
 
-    case $master_choice in
+    case $setup_type in
         1)
             echo "Initializing new Kubernetes cluster (Online mode)..."
             read -p "Enter the API server IP address: " API_SERVER_IP
+            configure_prerequisites
             sudo kubeadm init \
                 --pod-network-cidr=${POD_NETWORK_CIDR} \
                 --kubernetes-version=${K8S_VERSION} \
@@ -567,11 +598,13 @@ setup_master() {
         2)
             echo "Please enter the join command for control plane (includes --control-plane flag):"
             read -p "Join command: " join_command
+            configure_prerequisites
             eval sudo $join_command
             ;;
         3)
             echo "Initializing new Kubernetes cluster (Offline mode)..."
             read -p "Enter the API server IP address: " API_SERVER_IP
+            configure_prerequisites
             
             # Verify required images are present (base names only)
             echo "Verifying required images..."
@@ -592,7 +625,7 @@ setup_master() {
 
             echo "All required images found. Proceeding with offline installation..."
             
-            # Initialize the cluster with corrected flags
+            # Initialize the cluster
             if sudo kubeadm init \
                 --apiserver-advertise-address=${API_SERVER_IP} \
                 --pod-network-cidr=${POD_NETWORK_CIDR} \
@@ -601,7 +634,6 @@ setup_master() {
                 --cri-socket unix:///var/run/containerd/containerd.sock \
                 --v=5; then
 
-                
                 # Wait for admin.conf to be created
                 echo "Waiting for admin.conf to be created..."
                 for i in {1..30}; do
@@ -629,42 +661,49 @@ setup_master() {
             fi
             ;;
         *)
-            echo "Invalid choice. Exiting setup."
+            echo "Invalid setup type. Please choose 1, 2, or 3."
             return 1
             ;;
-esac
+    esac
 
+    # Setup kubeconfig with proper permissions
+    mkdir -p $HOME/.kube
+    sudo rm -f $HOME/.kube/config
+    sudo cp /etc/kubernetes/admin.conf $HOME/.kube/config
+    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+    chmod 600 $HOME/.kube/config
 
-    
-
-        # Setup kubeconfig with proper permissions
-        # Setup for current user
-        mkdir -p $HOME/.kube
-        sudo rm -f $HOME/.kube/config
-        sudo cp /etc/kubernetes/admin.conf $HOME/.kube/config
-        sudo chown $(id -u):$(id -g) $HOME/.kube/config
-        chmod 600 $HOME/.kube/config
-
-        # Setup for root user
-        sudo mkdir -p /root/.kube
-        sudo cp /etc/kubernetes/admin.conf /root/.kube/config
-        sudo chmod 600 /root/.kube/config
+    # Setup for root user
+    sudo mkdir -p /root/.kube
+    sudo cp /etc/kubernetes/admin.conf /root/.kube/config
+    sudo chmod 600 /root/.kube/config
             
-        # Export KUBECONFIG
-        export KUBECONFIG=$HOME/.kube/config
+    # Export KUBECONFIG
+    export KUBECONFIG=$HOME/.kube/config
     
-    # Apply Calico network (only for init, not join)
-    if [ "$master_choice" == "1" ]; then
+    # Apply Calico network (only for init cases, not join)
+    if [ "$setup_type" == "1" ] || [ "$setup_type" == "3" ]; then
         echo "Applying Calico network..."
-        kubectl apply -f $INSTALL_PATH/calico-${CALICO_VERSION}.yaml
+        if [ -f "${INSTALL_PATH}/calico-${CALICO_VERSION}.yaml" ]; then
+            kubectl apply -f "${INSTALL_PATH}/calico-${CALICO_VERSION}.yaml"
+            if [ $? -eq 0 ]; then
+                echo "Calico network applied successfully"
+            else
+                echo "Failed to apply Calico network. Please check the manifest file and try again"
+                return 1
+            fi
+        else
+            echo "Error: Calico manifest file not found at ${INSTALL_PATH}/calico-${CALICO_VERSION}.yaml"
+            return 1
+        fi
     fi
     
     echo "Master node setup completed!"
 }
 
+
 setup_worker() {
     echo "Setting up worker node..."
-    configure_prerequisites
         
     read -p "Enter the kubeadm join command from master: " JOIN_CMD
     sudo $JOIN_CMD
