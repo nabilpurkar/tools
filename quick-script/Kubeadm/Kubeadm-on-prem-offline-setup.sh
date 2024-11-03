@@ -10,12 +10,12 @@ CRI_PACKAGE_TOOL_VERSION="1.28.0"
 CONTAINERD_VERSION="1.7.14"
 CNI_VERSION="v1.3.0"
 CALICO_VERSION="v3.26.1"
-PAUSE_REGISTRY_VERSION=3.9
+PAUSE_REGISTRY_VERSION="3.9"
 ETCD_IMAGE_VERSION=3.5.15-0
 CORE_DNS_IMAGE_VERSION=v1.10.1
 
 
-POD_NETWORK_CIDR="10.244.0.0/16"
+POD_NETWORK_CIDR="10.0.0.0/16"
 
 BASE_DIR="${HOME}"
 PACKAGES_DIR="${BASE_DIR}/packages"
@@ -240,7 +240,7 @@ install_packages() {
         
         # Update containerd configuration to use systemd cgroup driver
         sudo sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' /etc/containerd/config.toml
-        sudo sed -i 's|registry.k8s.io/pause:3.8|registry.k8s.io/pause:${PAUSE_REGISTRY_VERSION}|g' /etc/containerd/config.toml
+        sudo sed -i "s|registry.k8s.io/pause:3.8|registry.k8s.io/pause:${PAUSE_REGISTRY_VERSION}|g" /etc/containerd/config.toml
         
 
         
@@ -542,7 +542,7 @@ load_images() {
 
 setup_master() {
     echo "Setting up master node..."
-        
+    configure_prerequisites
     
     # Ask user for initialization choice
     echo "=============================="
@@ -664,6 +664,7 @@ esac
 
 setup_worker() {
     echo "Setting up worker node..."
+    configure_prerequisites
         
     read -p "Enter the kubeadm join command from master: " JOIN_CMD
     sudo $JOIN_CMD
