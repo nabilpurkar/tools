@@ -14,14 +14,17 @@ mkdir -p "$KEYS_DIR"
 KEYS_FILE="${KEYS_DIR}/vault-keys.json"
 
 # Parse command line arguments
-while getopts "n:" opt; do
+while getopts "n:r:" opt; do
   case $opt in
     n)
       NAMESPACE="$OPTARG"
       ;;
+    r)
+      RELEASE_NAME="$OPTARG"
+      ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
-      echo "Usage: $0 [-n namespace]" >&2
+      echo "Usage: $0 [-n namespace] [-r release-name]" >&2
       exit 1
       ;;
   esac
@@ -33,13 +36,54 @@ if [ -z "$NAMESPACE" ]; then
     echo -e "${BLUE}No namespace provided, using default namespace${NC}"
 fi
 
-echo -e "${BLUE}Getting Vault pods in namespace ${NAMESPACE}...${NC}"
-VAULT_PODS=$(kubectl get pods -n $NAMESPACE -l app.kubernetes.io/name=vault -o jsonpath='{.items[*].metadata.name}')
+# Try to detect Vault pods using different methods
+echo -e "${BLUE}Detecting Vault pods in namespace ${NAMESPACE}...${NC}"
 
+# Method 1: Try default label
+VAULT_PODS=$(kubectl get pods -n $NAMESPACE -l app.kubernetes.io/name=vault -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
+
+# Method 2: If no pods found and release name provided, try with release name
+if [ -z "$VAULT_PODS" ] && [ ! -z "$RELEASE_NAME" ]; then
+    echo -e "${BLUE}Trying to find pods with release name: $RELEASE_NAME${NC}"
+    VAULT_PODS=$(kubectl get pods -n $NAMESPACE -l app.kubernetes.io/instance=$RELEASE_NAME -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
+fi
+
+# Method 3: Try to detect any pods running vault container
 if [ -z "$VAULT_PODS" ]; then
-    echo -e "${RED}No Vault pods found in namespace ${NAMESPACE}!${NC}"
+    echo -e "${BLUE}Trying to detect any pods running Vault...${NC}"
+    VAULT_PODS=$(kubectl get pods -n $NAMESPACE -o jsonpath='{.items[?(@.spec.containers[*].image=~".*vault.*")].metadata.name}' 2>/dev/null)
+fi
+
+# If still no pods found, list available pods for user to choose
+if [ -z "$VAULT_PODS" ]; then
+    echo -e "${BLUE}No Vault pods automatically detected. Available pods in namespace:${NC}"
+    kubectl get pods -n $NAMESPACE -o wide
+    echo -e "${RED}Please specify the release name using -r flag if Vault was installed with a different name${NC}"
     exit 1
 fi
+
+echo -e "${GREEN}Found Vault pods: $VAULT_PODS${NC}"
+
+# Get the internal service name
+if [ ! -z "$RELEASE_NAME" ]; then
+    INTERNAL_SERVICE="${RELEASE_NAME}-internal"
+else
+    INTERNAL_SERVICE="vault-internal"
+fi
+
+# Verify if the service exists
+if ! kubectl get service -n $NAMESPACE $INTERNAL_SERVICE >/dev/null 2>&1; then
+    echo -e "${BLUE}Detecting internal service name...${NC}"
+    INTERNAL_SERVICE=$(kubectl get service -n $NAMESPACE -l app.kubernetes.io/name=vault-internal -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+    if [ -z "$INTERNAL_SERVICE" ]; then
+        echo -e "${RED}Could not detect internal service name. Please verify your Vault installation.${NC}"
+        echo -e "${BLUE}Available services in namespace:${NC}"
+        kubectl get services -n $NAMESPACE
+        exit 1
+    fi
+fi
+
+echo -e "${GREEN}Using internal service: $INTERNAL_SERVICE${NC}"
 
 # Initialize Vault using the first pod
 FIRST_POD=$(echo $VAULT_PODS | cut -d' ' -f1)
@@ -110,7 +154,7 @@ for pod in $VAULT_PODS; do
         echo -e "${BLUE}Joining $pod to Raft cluster...${NC}"
         
         # Construct the join address using the internal service DNS
-        JOIN_ADDR="http://${FIRST_POD}.vault-internal.${NAMESPACE}.svc:8200"
+        JOIN_ADDR="http://${FIRST_POD}.${INTERNAL_SERVICE}.${NAMESPACE}.svc:8200"
         
         echo -e "${BLUE}Using join address: $JOIN_ADDR${NC}"
         
