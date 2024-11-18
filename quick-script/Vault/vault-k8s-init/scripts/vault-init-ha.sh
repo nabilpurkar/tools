@@ -66,7 +66,7 @@ echo -e "${GREEN}Found Vault pods: $VAULT_PODS${NC}"
 
 # Get the internal service name
 if [ ! -z "$RELEASE_NAME" ]; then
-    INTERNAL_SERVICE="${RELEASE_NAME}-internal"
+    INTERNAL_SERVICE="${RELEASE_NAME}-vault-internal"
 else
     INTERNAL_SERVICE="vault-internal"
 fi
