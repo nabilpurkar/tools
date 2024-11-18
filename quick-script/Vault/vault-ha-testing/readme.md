@@ -31,7 +31,9 @@ kubectl config set-context --current --namespace=vault
 # Install Vault with HA configuration
 helm install vault hashicorp/vault \
   --set server.ha.enabled=true \
-  --set server.ha.replicas=3
+  --set server.ha.replicas=3 \
+  --set 'server.ha.raft.enabled=true' \
+  --set 'server.ha.raft.setNodeId=true' 
   
 # Wait for pods to be ready
 kubectl wait --for=condition=Ready pod/vault-0
