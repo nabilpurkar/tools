@@ -1,5 +1,4 @@
 # Vault HA Cluster Initialization Script
-
 This repository contains a script to automate the initialization and unsealing of HashiCorp Vault in a Kubernetes High Availability (HA) configuration using Raft storage backend.
 
 ## 📁 Folder Structure
@@ -41,16 +40,98 @@ chmod +x scripts/vault-init-ha.sh
 ```
 
 ## 📝 Usage
+
+### Automated Method
 The script can be run with or without specifying a namespace:
 
-### With specific namespace:
+#### With specific namespace:
 ```bash
 ./scripts/vault-init-ha.sh -n my-namespace
 ```
 
-### Using default namespace:
+#### Using default namespace:
 ```bash
 ./scripts/vault-init-ha.sh
+```
+
+### Manual Steps
+If you prefer to initialize and unseal Vault manually, follow these steps:
+
+1. **Get the list of Vault pods**
+```bash
+# Replace 'your-namespace' with your namespace
+kubectl get pods -n your-namespace -l app.kubernetes.io/name=vault
+```
+
+2. **Initialize Vault** (only on one pod)
+```bash
+# Initialize and save the output
+kubectl exec -n your-namespace vault-0 -- vault operator init
+```
+Save the output safely - it contains unseal keys and root token.
+
+3. **Unseal the first pod**
+```bash
+# Run this command 3 times with different unseal keys
+kubectl exec -n your-namespace vault-0 -- vault operator unseal
+# Enter unseal key when prompted
+```
+
+4. **Login to Vault**
+```bash
+# Use the root token from initialization
+kubectl exec -n your-namespace vault-0 -- vault login
+# Enter root token when prompted
+```
+
+5. **Join other pods to Raft cluster** (for each additional pod)
+```bash
+# Get the join address
+JOIN_ADDR="http://vault-0.vault-internal.your-namespace.svc:8200"
+
+# Join the cluster
+kubectl exec -n your-namespace vault-1 -- sh -c \
+  "VAULT_ADDR='http://localhost:8200' vault operator raft join '$JOIN_ADDR'"
+```
+
+6. **Unseal additional pods**
+```bash
+# For each additional pod (e.g., vault-1, vault-2)
+# Run this command 3 times with different unseal keys
+kubectl exec -n your-namespace vault-1 -- vault operator unseal
+# Enter unseal key when prompted
+```
+
+7. **Verify cluster status**
+```bash
+# Check raft peers
+kubectl exec -n your-namespace vault-0 -- vault operator raft list-peers
+
+# Check vault status
+kubectl exec -n your-namespace vault-0 -- vault status
+```
+
+8. **Optional: Store keys securely**
+```bash
+# Create keys directory
+mkdir -p keys
+
+# Store keys (replace with your actual keys)
+cat > keys/vault-keys.json << EOF
+{
+  "unseal_keys_b64": [
+    "key1",
+    "key2",
+    "key3",
+    "key4",
+    "key5"
+  ],
+  "root_token": "your-root-token"
+}
+EOF
+
+# Secure the file
+chmod 600 keys/vault-keys.json
 ```
 
 ## 🔑 Key Storage
@@ -73,6 +154,8 @@ The script provides detailed output including:
 2. Rotate the root token after initial setup
 3. Consider implementing proper key sharing mechanisms for production
 4. Do not commit the keys directory to version control
+5. When performing manual steps, secure the unseal keys and root token immediately
+6. Consider using Vault's auto-unseal feature for production environments
 
 ## 🔄 What the Script Does
 1. Checks if Vault is initialized
@@ -92,6 +175,10 @@ The script provides detailed output including:
   - Verify the keys in `vault-keys.json`
   - Check pod status and logs
   - Ensure proper permissions for the service account
+- Manual debugging:
+  - Use `kubectl exec -it <pod-name> -- sh` to get shell access
+  - Check Vault logs: `kubectl logs <pod-name>`
+  - Verify network connectivity between pods
 
 ## 🤝 Contributing
 Contributions are welcome! Please:
