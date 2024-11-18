@@ -6,8 +6,12 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+# Create keys directory if it doesn't exist
+KEYS_DIR="keys"
+mkdir -p "$KEYS_DIR"
+
 # File to store keys and token
-KEYS_FILE="vault-keys.json"
+KEYS_FILE="${KEYS_DIR}/vault-keys.json"
 
 # Parse command line arguments
 while getopts "n:" opt; do
