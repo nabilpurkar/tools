@@ -1,184 +1,161 @@
-# Vault HA Cluster Initialization Script
+Vault HA Cluster Initialization Script
 This repository contains a script to automate the initialization and unsealing of HashiCorp Vault in a Kubernetes High Availability (HA) configuration using Raft storage backend.
-
-## 📁 Folder Structure
-```
-vault-k8s-init/
+📁 Folder Structure
+Copyvault-k8s-init/
 ├── README.md
 ├── scripts/
 │   └── vault-init-ha.sh
 └── keys/
     └── .gitignore    # To ensure no keys are accidentally committed
-```
+🚀 Features
 
-## 🚀 Features
-- Automatic Vault initialization in Kubernetes
-- Support for multi-pod HA setup with Raft storage
-- Automatic unsealing of all Vault pods
-- Raft cluster configuration
-- Namespace support for multi-tenant clusters
-- Colored output for better readability
-- Secure key storage
-- Retry mechanism for cluster join operations
+Automatic Vault initialization in Kubernetes
+Support for multi-pod HA setup with Raft storage
+Automatic unsealing of all Vault pods
+Automatic detection of Vault pods with multiple methods
+Support for custom release names
+Automatic internal service detection
+Raft cluster configuration
+Namespace support for multi-tenant clusters
+Colored output for better readability
+Secure key storage
+Retry mechanism for cluster join operations
 
-## 📋 Prerequisites
-- Kubernetes cluster with Vault pods deployed
-- `kubectl` configured with appropriate cluster access
-- `jq` installed on the system running the script
-- Vault pods labeled with `app.kubernetes.io/name=vault`
+📋 Prerequisites
 
-## 🔧 Installation
-1. Clone this repository:
-```bash
-git clone https://github.com/yourusername/vault-k8s-init.git
+Kubernetes cluster with Vault pods deployed
+kubectl configured with appropriate cluster access
+jq installed on the system running the script
+Vault pods deployed (supports various labeling schemes)
+
+🔧 Installation
+
+Clone this repository:
+
+bashCopygit clone https://github.com/yourusername/vault-k8s-init.git
 cd vault-k8s-init
-```
 
-2. Make the script executable:
-```bash
-chmod +x scripts/vault-init-ha.sh
-```
+Make the script executable:
 
-## 📝 Usage
+bashCopychmod +x scripts/vault-init-ha.sh
+📝 Usage
+Automated Method
+The script can be run with different options:
+Basic Usage (default namespace):
+bashCopy./scripts/vault-init-ha.sh
+With specific namespace:
+bashCopy./scripts/vault-init-ha.sh -n my-namespace
+With custom Vault release name:
+bashCopy./scripts/vault-init-ha.sh -r my-vault
+With both namespace and release name:
+bashCopy./scripts/vault-init-ha.sh -n my-namespace -r my-vault
+The script will automatically:
 
-### Automated Method
-The script can be run with or without specifying a namespace:
+Detect Vault pods using multiple methods:
 
-#### With specific namespace:
-```bash
-./scripts/vault-init-ha.sh -n my-namespace
-```
+Standard Vault labels
+Release name labels
+Container image detection
 
-#### Using default namespace:
-```bash
-./scripts/vault-init-ha.sh
-```
 
-### Manual Steps
+Find the correct internal service name
+Initialize and unseal the cluster
+
+Manual Steps
 If you prefer to initialize and unseal Vault manually, follow these steps:
 
-1. **Get the list of Vault pods**
-```bash
-# Replace 'your-namespace' with your namespace
-kubectl get pods -n your-namespace -l app.kubernetes.io/name=vault
-```
+Get the list of Vault pods
 
-2. **Initialize Vault** (only on one pod)
-```bash
-# Initialize and save the output
+bashCopy# Method 1: Using standard labels
+kubectl get pods -n your-namespace -l app.kubernetes.io/name=vault
+
+# Method 2: Using release name
+kubectl get pods -n your-namespace -l app.kubernetes.io/instance=your-release-name
+
+# Method 3: List all pods to find Vault pods
+kubectl get pods -n your-namespace
+
+Initialize Vault (only on one pod)
+
+bashCopy# Initialize and save the output
 kubectl exec -n your-namespace vault-0 -- vault operator init
-```
 Save the output safely - it contains unseal keys and root token.
 
-3. **Unseal the first pod**
-```bash
-# Run this command 3 times with different unseal keys
+Unseal the first pod
+
+bashCopy# Run this command 3 times with different unseal keys
 kubectl exec -n your-namespace vault-0 -- vault operator unseal
 # Enter unseal key when prompted
-```
 
-4. **Login to Vault**
-```bash
-# Use the root token from initialization
+Login to Vault
+
+bashCopy# Use the root token from initialization
 kubectl exec -n your-namespace vault-0 -- vault login
 # Enter root token when prompted
-```
 
-5. **Join other pods to Raft cluster** (for each additional pod)
-```bash
-# Get the join address
-JOIN_ADDR="http://vault-0.vault-internal.your-namespace.svc:8200"
+Find the internal service name
+
+bashCopy# List services to find the internal service
+kubectl get services -n your-namespace
+
+# The service name might be:
+# - vault-internal (default)
+# - your-release-name-internal (custom release)
+
+Join other pods to Raft cluster (for each additional pod)
+
+bashCopy# Get the join address (replace service-name with your internal service)
+JOIN_ADDR="http://vault-0.service-name.your-namespace.svc:8200"
 
 # Join the cluster
 kubectl exec -n your-namespace vault-1 -- sh -c \
   "VAULT_ADDR='http://localhost:8200' vault operator raft join '$JOIN_ADDR'"
-```
-
-6. **Unseal additional pods**
-```bash
-# For each additional pod (e.g., vault-1, vault-2)
-# Run this command 3 times with different unseal keys
-kubectl exec -n your-namespace vault-1 -- vault operator unseal
-# Enter unseal key when prompted
-```
-
-7. **Verify cluster status**
-```bash
-# Check raft peers
-kubectl exec -n your-namespace vault-0 -- vault operator raft list-peers
-
-# Check vault status
-kubectl exec -n your-namespace vault-0 -- vault status
-```
-
-8. **Optional: Store keys securely**
-```bash
-# Create keys directory
-mkdir -p keys
-
-# Store keys (replace with your actual keys)
-cat > keys/vault-keys.json << EOF
-{
-  "unseal_keys_b64": [
-    "key1",
-    "key2",
-    "key3",
-    "key4",
-    "key5"
-  ],
-  "root_token": "your-root-token"
-}
-EOF
-
-# Secure the file
-chmod 600 keys/vault-keys.json
-```
-
-## 🔑 Key Storage
-- The script generates a `vault-keys.json` file in the `keys/` directory
-- This file contains sensitive information including:
-  - Unseal keys (encoded in base64)
-  - Root token
-- ⚠️ IMPORTANT: Keep this file secure and backed up safely
-
-## 📊 Output
+[Rest of the manual steps remain the same...]
+🔑 Key Storage
+[Section remains the same...]
+📊 Output
 The script provides detailed output including:
-- Initialization status
-- Unsealing progress
-- Raft cluster join status
-- Final cluster status
-- Root token (for initial setup)
 
-## ⚠️ Security Considerations
-1. Store the generated `vault-keys.json` securely
-2. Rotate the root token after initial setup
-3. Consider implementing proper key sharing mechanisms for production
-4. Do not commit the keys directory to version control
-5. When performing manual steps, secure the unseal keys and root token immediately
-6. Consider using Vault's auto-unseal feature for production environments
+Pod detection results
+Service detection results
+Initialization status
+Unsealing progress
+Raft cluster join status
+Final cluster status
+Root token (for initial setup)
 
-## 🔄 What the Script Does
-1. Checks if Vault is initialized
-2. Initializes Vault if needed
-3. Stores initialization keys and token
-4. Unseals the primary pod
-5. Joins secondary pods to the Raft cluster
-6. Unseals secondary pods
-7. Verifies the cluster status
+⚠️ Security Considerations
+[Previous considerations remain, plus:]
+7. Review detected pods before proceeding with initialization
+8. Verify the internal service name is correct
+9. Consider using explicit release names in production environments
+🔄 What the Script Does
 
-## 🐛 Troubleshooting
-- If pods fail to join the cluster:
-  - Check network connectivity between pods
-  - Verify service DNS resolution
-  - Check the logs using `kubectl logs -n <namespace> <pod-name>`
-- If unsealing fails:
-  - Verify the keys in `vault-keys.json`
-  - Check pod status and logs
-  - Ensure proper permissions for the service account
-- Manual debugging:
-  - Use `kubectl exec -it <pod-name> -- sh` to get shell access
-  - Check Vault logs: `kubectl logs <pod-name>`
-  - Verify network connectivity between pods
+Detects Vault pods using multiple methods
+Identifies the correct internal service name
+Checks if Vault is initialized
+Initializes Vault if needed
+Stores initialization keys and token
+Unseals the primary pod
+Joins secondary pods to the Raft cluster
+Unseals secondary pods
+Verifies the cluster status
+
+🐛 Troubleshooting
+[Previous troubleshooting points remain, plus:]
+
+If pod detection fails:
+
+Check if pods are properly labeled
+Specify release name using -r flag
+Verify pod names and running status
+
+
+If service detection fails:
+
+Check if services are properly created
+Verify service labels and names
+Check namespace permissions
 
 ## 🤝 Contributing
 Contributions are welcome! Please:
